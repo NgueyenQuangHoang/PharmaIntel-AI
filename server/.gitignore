@@ -1,0 +1,58 @@
+## .NET build artifacts
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.log
+*.user
+*.userosscache
+*.userprefs
+*.suo
+*.sln.docstates
+*.rsuser
+
+## Visual Studio / Rider / VSCode
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+## .NET publish / package output
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+bld/
+publish/
+*.publish.xml
+*.pubxml.user
+*.azurePubxml
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## Test results
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+
+## Secrets - KHONG commit
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.key
+.env
+.env.*
+!.env.example
+
+## Tooling local state (Claude Code, Cursor, ...)
+.claude/
+
+## OS
+Thumbs.db
+.DS_Store

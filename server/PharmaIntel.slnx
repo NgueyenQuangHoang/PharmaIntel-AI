@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="PharmaIntel.API/PharmaIntel.API.csproj" />
+  <Project Path="PharmaIntel.Core/PharmaIntel.Core.csproj" />
+  <Project Path="PharmaIntel.Infrastructure/PharmaIntel.Infrastructure.csproj" />
+</Solution>
