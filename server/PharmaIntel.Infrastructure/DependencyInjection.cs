@@ -26,6 +26,7 @@ public static class DependencyInjection
                 sql => sql.MigrationsAssembly("PharmaIntel.Infrastructure")));
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
+        services.Configure<GeminiSettings>(config.GetSection("Gemini"));
 
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -41,7 +42,12 @@ public static class DependencyInjection
         services.AddScoped<IHealthMetricService, HealthMetricService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ISymptomService, SymptomService>();
-        services.AddScoped<IDiagnosticEngine, MockDiagnosticEngine>();
+        // Gemini AI engine (real). HttpClient duoc tao qua HttpClientFactory.
+        services.AddHttpClient<IDiagnosticEngine, GeminiDiagnosticEngine>((sp, client) =>
+        {
+            var s = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GeminiSettings>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(s.TimeoutSeconds <= 0 ? 30 : s.TimeoutSeconds);
+        });
         services.AddScoped<IDiagnosticService, DiagnosticService>();
 
         // Seeder - chay luc startup neu Bootstrap:Seed:Enabled = true

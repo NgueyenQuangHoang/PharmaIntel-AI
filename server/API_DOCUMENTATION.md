@@ -2319,23 +2319,23 @@ DiagnosticSession (1:N) ----+--- DiagnosticSessionSymptom (N:N voi Symptom)
 
 ### Engine
 
-- Hien tai dung **`MockDiagnosticEngine`** (rule-based theo keyword tieng Viet khong dau).
-- Logic mock:
-  - Phat hien red-flag (`dau nguc`, `kho tho`, `ngat`, `co giat`, ...) -> `riskLevel="emergency"`, requiresDoctorVisit=true.
-  - Cum trieu chung cam cum (`sot`, `ho`, `so mui`, `dau hong`) -> low-risk + recommend paracetamol/ibuprofen.
-  - Dau dau / chong mat -> low-risk + recommend giam dau.
-  - Dau bung / buon non / tieu chay -> medium-risk + recommend smecta/men tieu hoa.
-  - Default -> low-risk + theo doi them.
-- **Suggested medications**: query top 3 thuoc trong DB (`is_active=true`, `is_prescription_required=false`) match keyword.
-- **Khi chuyen sang AI that** (OpenAI/Azure/Gemini): chi can tao `OpenAIDiagnosticEngine : IDiagnosticEngine` va register lai DI - khong sua service/controller.
-- Audit: moi `DiagnosticResult` luu `modelName + modelVersion` (`PharmaIntel-MockEngine` / `0.1-rule-based`) de truy vet.
+- **Hien tai dung `GeminiDiagnosticEngine`** - goi truc tiep Google Gemini API (`gemini-2.0-flash`).
+- Flow:
+  - `CompleteSessionAsync` build prompt tieng Viet kem trieu chung + cac user message -> POST `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={ApiKey}` voi `responseMimeType=application/json`.
+  - Gemini tra ve JSON co `aiConclusion`, `confidenceScore` (0-100), `riskLevel` (low/medium/high/emergency), `redFlags`, `requiresDoctorVisit`, `medicationKeywords[]`, `aiReplyMessage`.
+  - Engine clamp score, normalize riskLevel, query DB Medications theo `medicationKeywords` (top 3, `is_active=true`, `is_prescription_required=false`, uu tien `IsBestSeller`).
+  - Loi API/parse -> fallback ket qua low-risk score=30 + log error (session van `completed`, khong throw 500).
+- **Auto-reply trong chat (`GenerateAutoReply`)** van rule-based dong bo (de khong block request luc `AddMessageAsync`); ket luan AI day du chi chay khi `Complete`.
+- Cau hinh tai `appsettings.json` -> section `Gemini`: `ApiKey` (User Secrets/env var), `Model`, `BaseUrl`, `TimeoutSeconds`, `Enabled`. ApiKey production set qua env var `Gemini__ApiKey`.
+- **Khi muon swap engine khac** (OpenAI/Azure...): tao class moi `: IDiagnosticEngine` va doi registration trong `DependencyInjection.AddInfrastructure` - khong sua service/controller.
+- Audit: moi `DiagnosticResult` luu `modelName="Google-Gemini"` + `modelVersion=<model>` (vi du `gemini-2.0-flash`, hoac `gemini-2.0-flash-fallback` khi roi vao fallback path).
 
 ### Quy tac nghiep vu
 
 - **Session moi tao luon `status="in_progress"`**, kem auto-message:
   - `system`: "Trieu chung da chon: ..."
   - `user`: noi dung `initialMessage` (neu co)
-  - `ai`: phan hoi tu dong tu mock engine
+  - `ai`: phan hoi tu dong tu engine (rule-based reply ngan)
 - **AddMessage chi cho khi `in_progress`** (cancelled/completed/failed -> 409). Moi user message duoc AI auto-reply ngay (sau 3 user message AI goi y `/complete`).
 - **Complete chi cho khi `in_progress`** -> chuyen `analyzing` -> chay engine -> tao result + suggested medications -> chuyen `completed`. Toan bo trong 1 transaction. Loi engine -> chuyen `failed`.
 - **Result 1:1 voi session** (`UQ_diagnostic_results_session_id`). Re-complete -> 409.
@@ -2481,7 +2481,7 @@ curl http://localhost:5292/api/diagnostics/sessions/1 -H "Authorization: Bearer 
 
 ### 14.5 `POST /api/diagnostics/sessions/{id}/messages`
 
-Gui tin nhan moi vao phien. AI tu dong tra loi (mock engine).
+Gui tin nhan moi vao phien. AI tu dong tra loi (rule-based reply ngan; ket luan day du tu Gemini chay o `/complete`).
 
 **Request body**
 
