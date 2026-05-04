@@ -53,6 +53,10 @@ secrets.json
 ## Tooling local state (Claude Code, Cursor, ...)
 .claude/
 
+## Internal docs (khong commit)
+agent.md
+AI_ENGINE.md
+
 ## OS
 Thumbs.db
 .DS_Store
