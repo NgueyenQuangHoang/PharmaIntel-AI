@@ -10,10 +10,10 @@ public class CreateDiagnosticSessionRequestValidator : AbstractValidator<CreateD
 {
     public CreateDiagnosticSessionRequestValidator()
     {
+        // SymptomIds optional: cho phep tao session khong kem trieu chung
+        // (user co the chat tu do truoc, chon trieu chung sau hoac khong chon).
         RuleFor(x => x.SymptomIds)
             .NotNull()
-            .Must(ids => ids != null && ids.Count > 0)
-                .WithMessage("Phai chon it nhat 1 trieu chung")
             .Must(ids => ids == null || ids.All(id => id > 0))
                 .WithMessage("SymptomIds chua gia tri khong hop le")
             .Must(ids => ids == null || ids.Count <= 20)

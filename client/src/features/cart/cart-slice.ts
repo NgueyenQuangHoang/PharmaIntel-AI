@@ -13,6 +13,7 @@ export type CartState = {
   mutating: boolean
   pendingMedicationIds: number[]    // dung de disable nut khi dang submit per-item
   error: string | null
+  isCartOpen: boolean
 }
 
 const initialState: CartState = {
@@ -21,6 +22,7 @@ const initialState: CartState = {
   mutating: false,
   pendingMedicationIds: [],
   error: null,
+  isCartOpen: false,
 }
 
 function extractError(err: unknown, fallback: string): string {
@@ -98,6 +100,12 @@ const cartSlice = createSlice({
       state.mutating = false
       state.pendingMedicationIds = []
       state.error = null
+    },
+    openCart(state) {
+      state.isCartOpen = true
+    },
+    closeCart(state) {
+      state.isCartOpen = false
     },
   },
   extraReducers: (builder) => {
@@ -219,5 +227,5 @@ const cartSlice = createSlice({
   },
 })
 
-export const { cartReset } = cartSlice.actions
+export const { cartReset, openCart, closeCart } = cartSlice.actions
 export default cartSlice.reducer

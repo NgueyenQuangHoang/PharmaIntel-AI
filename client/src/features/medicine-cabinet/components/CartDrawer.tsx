@@ -2,19 +2,19 @@ import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 import {
   removeCartItemThunk,
   updateCartItemThunk,
+  closeCart,
 } from '@/features/cart/cart-slice';
 import { formatVnd } from '@/utils/format';
+import { useNavigate } from 'react-router-dom';
 
-interface CartDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
+export function CartDrawer() {
   const dispatch = useAppDispatch();
+  const isOpen = useAppSelector((s) => s.cart.isCartOpen);
+  const onClose = () => dispatch(closeCart());
   const cart = useAppSelector((s) => s.cart.cart);
   const status = useAppSelector((s) => s.cart.status);
   const pendingIds = useAppSelector((s) => s.cart.pendingMedicationIds);
+  const navigate = useNavigate();
 
   const items = cart?.items ?? [];
 
@@ -24,6 +24,11 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     } else {
       dispatch(updateCartItemThunk({ medicationId, quantity: nextQty }));
     }
+  };
+
+  const handleCheckout = () => {
+    onClose();
+    navigate('/checkout');
   };
 
   return (
@@ -149,6 +154,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               <span className="text-primary">{formatVnd(cart.total)}</span>
             </div>
             <button
+              onClick={handleCheckout}
               disabled={cart.hasUnavailableItems}
               className="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-full font-bold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >

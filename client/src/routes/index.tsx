@@ -6,6 +6,7 @@ import { MedicineCabinetPage } from '@/pages/medicine-cabinet-page';
 import { ProfilePage } from '@/pages/profile-page';
 import { LoginPage } from '@/pages/login-page';
 import { RegisterPage } from '@/pages/register-page';
+import { CheckoutPage } from '@/pages/checkout-page';
 import { AdminDashboardPage } from '@/pages/admin-dashboard-page';
 import { AdminUsersPage } from '@/pages/admin-users-page';
 import { AdminCategoriesPage } from '@/pages/admin-categories-page';
@@ -49,6 +50,7 @@ export function AppRoutes() {
           <Route path="/diagnostic/result" element={<DiagnosticResultPage />} />
           <Route path="/medicine" element={<MedicineCabinetPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
         </Route>
 
         {/* Admin area - yeu cau role=admin */}

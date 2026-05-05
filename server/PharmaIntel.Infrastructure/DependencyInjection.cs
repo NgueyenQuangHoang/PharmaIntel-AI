@@ -50,6 +50,7 @@ public static class DependencyInjection
             var s = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GeminiSettings>>().Value;
             client.Timeout = TimeSpan.FromSeconds(s.TimeoutSeconds <= 0 ? 30 : s.TimeoutSeconds);
         });
+        services.AddScoped<IAiMedicationRetrievalService, AiMedicationRetrievalService>();
         services.AddScoped<IDiagnosticService, DiagnosticService>();
 
         // Seeder - chay luc startup neu Bootstrap:Seed:Enabled = true

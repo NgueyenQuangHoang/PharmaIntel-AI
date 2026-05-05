@@ -43,25 +43,81 @@ public class DataSeeder
     // -------------------------------------------------------------------------
     private async Task SeedSymptomsAsync(CancellationToken ct)
     {
-        if (await _db.Symptoms.AnyAsync(ct)) return;
-
-        var items = new[]
+        // Desired list - day du dau tieng Viet, mo rong them nhom Da lieu va Co xuong khop.
+        // Idempotent upsert: map ten cu (khong dau) -> ten moi (co dau) de nang cap database
+        // hien huu ma khong xoa ID (bao toan FK tu DiagnosticSessionSymptom).
+        var desired = new (string Name, string GroupName, int Order, string LegacyName)[]
         {
-            new Symptom { Name = "Sot",        GroupName = "toan than", DisplayOrder = 1 },
-            new Symptom { Name = "Nhuc moi",   GroupName = "toan than", DisplayOrder = 2 },
-            new Symptom { Name = "Chong mat",  GroupName = "toan than", DisplayOrder = 3 },
-            new Symptom { Name = "Ho",         GroupName = "ho hap",    DisplayOrder = 1 },
-            new Symptom { Name = "So mui",     GroupName = "ho hap",    DisplayOrder = 2 },
-            new Symptom { Name = "Dau hong",   GroupName = "ho hap",    DisplayOrder = 3 },
-            new Symptom { Name = "Kho tho",    GroupName = "ho hap",    DisplayOrder = 4 },
-            new Symptom { Name = "Dau dau",    GroupName = "than kinh", DisplayOrder = 1 },
-            new Symptom { Name = "Buon non",   GroupName = "tieu hoa",  DisplayOrder = 1 },
-            new Symptom { Name = "Dau bung",   GroupName = "tieu hoa",  DisplayOrder = 2 },
-            new Symptom { Name = "Tieu chay",  GroupName = "tieu hoa",  DisplayOrder = 3 },
-            new Symptom { Name = "Dau nguc",   GroupName = "tim mach",  DisplayOrder = 1 }
+            // Toan than
+            ("Sốt",            "Toàn thân",   1, "Sot"),
+            ("Nhức mỏi",       "Toàn thân",   2, "Nhuc moi"),
+            ("Chóng mặt",      "Toàn thân",   3, "Chong mat"),
+            ("Mệt mỏi",        "Toàn thân",   4, "__new_met_moi"),
+            ("Ớn lạnh",        "Toàn thân",   5, "__new_on_lanh"),
+
+            // Ho hap
+            ("Ho",             "Hô hấp",      1, "Ho"),
+            ("Sổ mũi",         "Hô hấp",      2, "So mui"),
+            ("Đau họng",       "Hô hấp",      3, "Dau hong"),
+            ("Khó thở",        "Hô hấp",      4, "Kho tho"),
+            ("Hắt hơi",        "Hô hấp",      5, "__new_hat_hoi"),
+            ("Đờm nhiều",      "Hô hấp",      6, "__new_dom_nhieu"),
+
+            // Than kinh
+            ("Đau đầu",        "Thần kinh",   1, "Dau dau"),
+            ("Mất ngủ",        "Thần kinh",   2, "__new_mat_ngu"),
+            ("Hoa mắt",        "Thần kinh",   3, "__new_hoa_mat"),
+
+            // Tieu hoa
+            ("Buồn nôn",       "Tiêu hóa",    1, "Buon non"),
+            ("Đau bụng",       "Tiêu hóa",    2, "Dau bung"),
+            ("Tiêu chảy",      "Tiêu hóa",    3, "Tieu chay"),
+            ("Táo bón",        "Tiêu hóa",    4, "__new_tao_bon"),
+            ("Đầy hơi",        "Tiêu hóa",    5, "__new_day_hoi"),
+            ("Ợ chua",         "Tiêu hóa",    6, "__new_o_chua"),
+
+            // Tim mach
+            ("Đau ngực",       "Tim mạch",    1, "Dau nguc"),
+            ("Hồi hộp",        "Tim mạch",    2, "__new_hoi_hop"),
+            ("Tăng huyết áp",  "Tim mạch",    3, "__new_tang_huyet_ap"),
+
+            // Da lieu (moi)
+            ("Mẩn ngứa",       "Da liễu",     1, "__new_man_ngua"),
+            ("Phát ban",       "Da liễu",     2, "__new_phat_ban"),
+            ("Nổi mề đay",     "Da liễu",     3, "__new_noi_me_day"),
+
+            // Co xuong khop (moi)
+            ("Đau lưng",       "Cơ xương khớp", 1, "__new_dau_lung"),
+            ("Đau khớp",       "Cơ xương khớp", 2, "__new_dau_khop"),
+            ("Co cứng cơ",     "Cơ xương khớp", 3, "__new_co_cung_co"),
         };
 
-        _db.Symptoms.AddRange(items);
+        var existing = await _db.Symptoms.ToListAsync(ct);
+
+        foreach (var d in desired)
+        {
+            // Tim theo legacy name (data cu khong dau) hoac theo name moi (data da nang cap)
+            var match = existing.FirstOrDefault(x =>
+                string.Equals(x.Name, d.LegacyName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.Name, d.Name, StringComparison.Ordinal));
+
+            if (match == null)
+            {
+                _db.Symptoms.Add(new Symptom
+                {
+                    Name = d.Name,
+                    GroupName = d.GroupName,
+                    DisplayOrder = d.Order
+                });
+            }
+            else
+            {
+                match.Name = d.Name;
+                match.GroupName = d.GroupName;
+                match.DisplayOrder = d.Order;
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 

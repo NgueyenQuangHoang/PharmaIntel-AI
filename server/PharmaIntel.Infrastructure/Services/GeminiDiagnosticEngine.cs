@@ -1,23 +1,24 @@
 // =============================================================================
 // Service: GeminiDiagnosticEngine
-// Chuc nang: AI engine that su dung Google Gemini API thay cho mock rule-based.
+// Chuc nang: AI engine dung Google Gemini API + RAG Muc 1 (SQL Search + Prompt
+//            Context). Khong train, khong embedding, khong vector DB.
 // Quan he:
-//   - Implement IDiagnosticEngine (thay the MockDiagnosticEngine trong DI).
-//   - Goi REST API: POST {BaseUrl}models/{Model}:generateContent?key={ApiKey}.
-//   - Yeu cau Gemini tra ve JSON co cau truc -> parse vao DiagnosticEngineResult.
-//   - Van query DB Medications theo keyword (do AI chi biet ten thuoc, khong biet ID).
+//   - Implement IDiagnosticEngine (DI thay MockDiagnosticEngine).
+//   - Goi REST: POST {BaseUrl}models/{Model}:generateContent?key={ApiKey}.
+//   - Nhan IReadOnlyList<AiMedicationContext> da retrieve san tu DB qua
+//     IAiMedicationRetrievalService -> inject vao prompt.
+//   - Gemini chi duoc khuyen thuoc co trong danh sach. Backend ALSO loc lai
+//     SuggestedMedicationIds trong DiagnosticService de phong Gemini bia ID.
 // Fallback:
-//   - Khi Gemini loi (timeout/quota/parse fail) -> rui ro thap, ket luan generic.
-//   - Logger ghi lai loi de debug.
+//   - Loi (timeout/quota/parse) -> ket luan generic, khong goi y thuoc.
 // =============================================================================
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PharmaIntel.Core.Interfaces.Services;
-using PharmaIntel.Infrastructure.Data;
 
 namespace PharmaIntel.Infrastructure.Services;
 
@@ -25,53 +26,63 @@ public class GeminiDiagnosticEngine : IDiagnosticEngine
 {
     private const string MODEL_NAME = "Google-Gemini";
 
-    private readonly PharmaIntelDbContext _db;
     private readonly HttpClient _http;
     private readonly GeminiSettings _settings;
     private readonly ILogger<GeminiDiagnosticEngine> _logger;
 
     public GeminiDiagnosticEngine(
-        PharmaIntelDbContext db,
         HttpClient http,
         IOptions<GeminiSettings> settings,
         ILogger<GeminiDiagnosticEngine> logger)
     {
-        _db = db;
         _http = http;
         _settings = settings.Value;
         _logger = logger;
     }
 
+    // -------------------------------------------------------------------------
+    // AnalyzeAsync: ket luan AI khi Complete session
+    // -------------------------------------------------------------------------
     public async Task<DiagnosticEngineResult> AnalyzeAsync(DiagnosticEngineRequest request, CancellationToken ct = default)
     {
-        var symptomList = string.Join(", ", request.SymptomNames ?? []);
-        var msgList = request.UserMessages == null || request.UserMessages.Count == 0
-            ? "(khong co)"
-            : string.Join("\n- ", request.UserMessages);
+        var symptomsSummary = string.Join(", ", request.SymptomNames ?? []);
+        var conversation = (request.UserMessages ?? []).Select(m => $"user: {m}").ToList();
+        var medsBlock = BuildMedicationContextText(request.MedicationContexts ?? []);
 
-        var prompt = $@"Ban la tro ly y te (PharmaIntel AI) tai Viet Nam. Phan tich tinh trang nguoi dung va tra ve DUY NHAT mot doan JSON hop le (khong markdown, khong giai thich them).
+        var prompt = $@"Ban la AI ho tro sang loc trieu chung cho ung dung PharmaIntel tai Viet Nam.
 
-Trieu chung nguoi dung chon: {symptomList}
-Tin nhan mo ta them tu nguoi dung:
-- {msgList}
+Nhiem vu: Phan tich trieu chung va tra ve DUY NHAT mot doan JSON hop le (khong markdown, khong giai thich them).
 
-Yeu cau JSON co cau truc:
+Quy tac an toan:
+- Khong khang dinh chan doan chac chan.
+- Khong thay the bac si hoac duoc si.
+- KHONG khuyen nghi thuoc ngoai DANH SACH THUOC HE THONG ben duoi.
+- recommendedMedicationIds CHI duoc lay ID tu danh sach thuoc he thong.
+- Neu thuoc IsPrescriptionRequired = true, advice phai noi ro can bac si/duoc si xac nhan.
+- Neu trieu chung nguy hiem (kho tho, dau nguc, sot cao keo dai, mat y thuc, co giat, dau du doi, xuat huyet) -> requiresDoctorVisit = true va riskLevel = ""emergency"".
+- Tra loi bang tieng Viet, ngan gon.
+
+Trieu chung da chon: {symptomsSummary}
+
+DANH SACH THUOC HE THONG (chi duoc chon trong day):
+{medsBlock}
+
+Lich su hoi thoai:
+{(conversation.Count == 0 ? "(khong co)" : string.Join("\n", conversation))}
+
+Hay tra ve JSON dung format sau:
 {{
-  ""aiConclusion"": ""Ket luan & khuyen nghi bang tieng Viet, 2-4 cau"",
-  ""confidenceScore"": 0-100 (so),
-  ""riskLevel"": ""low"" | ""medium"" | ""high"" | ""emergency"",
-  ""redFlags"": ""null hoac chuoi mo ta dau hieu nguy hiem"",
-  ""requiresDoctorVisit"": true/false,
-  ""medicationKeywords"": [""tu khoa de tim thuoc OTC trong catalog, vi du paracetamol, ibuprofen, men tieu hoa, smecta, ho""],
+  ""aiConclusion"": ""ket luan tham khao 2-4 cau"",
+  ""confidenceScore"": 0-100,
+  ""riskLevel"": ""low|medium|high|emergency"",
+  ""redFlags"": null hoac chuoi mo ta dau hieu nguy hiem,
+  ""requiresDoctorVisit"": true|false,
+  ""recommendedMedicationIds"": [<chi lay ID tu danh sach tren, toi da 3 ID>],
+  ""advice"": ""loi khuyen an toan ngan gon"",
   ""aiReplyMessage"": ""tin nhan ngan 1 cau gui trong chat""
 }}
 
-Quy tac:
-- Neu co dau hieu nguy hiem (dau nguc, kho tho, ngat, co giat, xuat huyet) -> riskLevel = ""emergency"", requiresDoctorVisit = true.
-- Chi de xuat thuoc OTC khong ke don (paracetamol, oresol, smecta, men tieu hoa, vitamin, siro ho...). KHONG de xuat khang sinh.
-- KHONG dung dau nhay kep "" trong cac gia tri string (dung dau nhay don ' neu can).
-- aiConclusion va aiReplyMessage NGAN GON, moi cai duoi 300 ky tu.
-- Tra ve THUAN JSON 1 doan, khong markdown fences, khong xuong dong giua chuoi.";
+Khong dung dau "" trong gia tri string (dung ' neu can). Tra ve THUAN JSON, khong fences.";
 
         string raw = string.Empty;
         try
@@ -79,43 +90,20 @@ Quy tac:
             raw = await CallGeminiAsync(prompt, ct);
             var parsed = ParseJsonFromResponse(raw);
 
-            var result = new DiagnosticEngineResult
+            return new DiagnosticEngineResult
             {
-                AiConclusion = parsed.AiConclusion ?? "Khong the phan tich tu Gemini.",
+                AiConclusion = string.IsNullOrWhiteSpace(parsed.AiConclusion)
+                    ? (string.IsNullOrWhiteSpace(parsed.Advice) ? "Khong the phan tich tu Gemini." : parsed.Advice!)
+                    : parsed.AiConclusion!,
                 ConfidenceScore = ClampScore(parsed.ConfidenceScore),
                 RiskLevel = NormalizeRisk(parsed.RiskLevel),
                 RedFlags = string.IsNullOrWhiteSpace(parsed.RedFlags) ? null : parsed.RedFlags,
                 RequiresDoctorVisit = parsed.RequiresDoctorVisit,
                 ModelName = MODEL_NAME,
                 ModelVersion = _settings.Model,
-                AiReplyMessage = parsed.AiReplyMessage
+                AiReplyMessage = parsed.AiReplyMessage,
+                SuggestedMedicationIds = parsed.RecommendedMedicationIds ?? []
             };
-
-            // Tim Medications phu hop trong catalog theo tu khoa Gemini de xuat
-            if (parsed.MedicationKeywords != null && parsed.MedicationKeywords.Count > 0)
-            {
-                var keywords = parsed.MedicationKeywords
-                    .Where(k => !string.IsNullOrWhiteSpace(k))
-                    .Select(k => k.Trim())
-                    .Distinct()
-                    .Take(8)
-                    .ToList();
-
-                if (keywords.Count > 0)
-                {
-                    result.SuggestedMedicationIds = await _db.Medications.AsNoTracking()
-                        .Where(m => m.IsActive
-                                    && !m.IsPrescriptionRequired
-                                    && keywords.Any(kw => m.Name.Contains(kw)))
-                        .OrderByDescending(m => m.IsBestSeller)
-                        .ThenByDescending(m => m.StockQuantity)
-                        .Take(3)
-                        .Select(m => m.Id)
-                        .ToListAsync(ct);
-                }
-            }
-
-            return result;
         }
         catch (Exception ex)
         {
@@ -133,26 +121,99 @@ Quy tac:
         }
     }
 
-    public string GenerateAutoReply(string userMessage, int existingUserMessageCount)
+    // -------------------------------------------------------------------------
+    // GenerateChatReplyAsync: tra loi tin nhan trong chat (RAG)
+    // -------------------------------------------------------------------------
+    public async Task<string> GenerateChatReplyAsync(
+        string symptomsSummary,
+        IReadOnlyList<string> conversationMessages,
+        string userMessage,
+        IReadOnlyList<AiMedicationContext> medicationContexts,
+        CancellationToken ct = default)
     {
-        // Reply trong chat dung sync rule-based de khong block. Ket luan AI day du chay trong CompleteSession.
-        if (existingUserMessageCount >= 3)
-            return "Da ghi nhan day du thong tin. Ban co the goi POST /complete de nhan ket luan AI tu Gemini.";
+        var medsBlock = BuildMedicationContextText(medicationContexts);
+        var history = conversationMessages == null || conversationMessages.Count == 0
+            ? "(chua co)"
+            : string.Join("\n", conversationMessages);
 
-        return "Da ghi nhan. Vui long mo ta them ve thoi gian xuat hien, muc do nghiem trong, " +
-               "hoac cac trieu chung kem theo de AI danh gia chinh xac hon.";
+        var prompt = $@"Ban la tro ly y te AI trong ung dung PharmaIntel.
+
+Quy tac an toan:
+- Khong chan doan chac chan, khong thay the bac si/duoc si.
+- KHONG bia ten thuoc ngoai DANH SACH THUOC HE THONG ben duoi.
+- Chi nhac den thuoc co trong danh sach. Neu thuoc can don, phai noi ro can bac si/duoc si xac nhan.
+- Khong dua lieu dung ca nhan hoa.
+- Neu co dau hieu nguy hiem (kho tho, dau nguc, sot cao keo dai, mat y thuc, co giat, dau du doi), khuyen den co so y te.
+- Tra loi NGAN GON, de hieu, bang tieng Viet, toi da 4 cau.
+
+Trieu chung da chon: {symptomsSummary}
+
+DANH SACH THUOC HE THONG LIEN QUAN:
+{medsBlock}
+
+Lich su hoi thoai:
+{history}
+
+Tin nhan moi cua nguoi dung:
+{userMessage}
+
+Hay phan hoi nhu mot tro ly y te can trong. Tra ve thuan van ban, khong markdown.";
+
+        try
+        {
+            var text = await CallGeminiAsync(prompt, ct, plainText: true);
+            return text.Trim();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gemini GenerateChatReplyAsync that bai");
+            return "Da ghi nhan. He thong AI tam thoi khong phan tich duoc, vui long thu lai sau hoac mo ta them ve thoi gian xuat hien va muc do nghiem trong.";
+        }
     }
 
     // -------------------------------------------------------------------------
-    // Gemini REST call
+    // Helpers
     // -------------------------------------------------------------------------
 
-    private async Task<string> CallGeminiAsync(string prompt, CancellationToken ct)
+    private static string BuildMedicationContextText(IReadOnlyList<AiMedicationContext> meds)
+    {
+        if (meds == null || meds.Count == 0)
+            return "(He thong khong tim thay thuoc lien quan)";
+
+        var sb = new StringBuilder();
+        foreach (var m in meds)
+        {
+            sb.Append("- [ID=").Append(m.Id).Append("] ").Append(m.Name);
+            if (!string.IsNullOrWhiteSpace(m.GenericName))
+                sb.Append(" (").Append(m.GenericName).Append(')');
+            sb.Append(m.IsPrescriptionRequired ? " [CAN DON]" : " [OTC]");
+
+            if (!string.IsNullOrWhiteSpace(m.ActiveIngredients))
+                sb.Append(" | Hoat chat: ").Append(Truncate(m.ActiveIngredients, 80));
+            if (!string.IsNullOrWhiteSpace(m.Benefits))
+                sb.Append(" | Cong dung: ").Append(Truncate(m.Benefits, 120));
+
+            sb.AppendLine();
+        }
+        return sb.ToString();
+    }
+
+    private static string Truncate(string? s, int max)
+    {
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+        return s.Length <= max ? s : s[..max] + "...";
+    }
+
+    private async Task<string> CallGeminiAsync(string prompt, CancellationToken ct, bool plainText = false)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
             throw new InvalidOperationException("Gemini ApiKey chua duoc cau hinh trong appsettings.");
 
         var url = $"{_settings.BaseUrl.TrimEnd('/')}/models/{_settings.Model}:generateContent?key={_settings.ApiKey}";
+
+        object generationConfig = plainText
+            ? new { temperature = 0.5, topP = 0.9, maxOutputTokens = 1024 }
+            : (object)new { temperature = 0.4, topP = 0.9, maxOutputTokens = 2048, responseMimeType = "application/json" };
 
         var body = new
         {
@@ -164,13 +225,7 @@ Quy tac:
                     parts = new[] { new { text = prompt } }
                 }
             },
-            generationConfig = new
-            {
-                temperature = 0.4,
-                topP = 0.9,
-                maxOutputTokens = 2048,
-                responseMimeType = "application/json"
-            }
+            generationConfig
         };
 
         using var resp = await _http.PostAsJsonAsync(url, body, ct);
@@ -179,7 +234,6 @@ Quy tac:
             throw new HttpRequestException($"Gemini API loi {(int)resp.StatusCode}: {raw}");
 
         using var doc = JsonDocument.Parse(raw);
-        // candidates[0].content.parts[0].text
         var text = doc.RootElement
             .GetProperty("candidates")[0]
             .GetProperty("content")
@@ -195,7 +249,6 @@ Quy tac:
 
     private static GeminiAnalysisDto ParseJsonFromResponse(string text)
     {
-        // Cat bo markdown fences neu Gemini van them dau ngay khi yeu cau JSON thuan
         var trimmed = text.Trim();
         if (trimmed.StartsWith("```"))
         {
@@ -238,7 +291,8 @@ Quy tac:
         [JsonPropertyName("riskLevel")] public string? RiskLevel { get; set; }
         [JsonPropertyName("redFlags")] public string? RedFlags { get; set; }
         [JsonPropertyName("requiresDoctorVisit")] public bool RequiresDoctorVisit { get; set; }
-        [JsonPropertyName("medicationKeywords")] public List<string>? MedicationKeywords { get; set; }
+        [JsonPropertyName("recommendedMedicationIds")] public List<long>? RecommendedMedicationIds { get; set; }
+        [JsonPropertyName("advice")] public string? Advice { get; set; }
         [JsonPropertyName("aiReplyMessage")] public string? AiReplyMessage { get; set; }
     }
 }

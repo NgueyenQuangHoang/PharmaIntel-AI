@@ -116,14 +116,20 @@ public class MockDiagnosticEngine : IDiagnosticEngine
         return result;
     }
 
-    public string GenerateAutoReply(string userMessage, int existingUserMessageCount)
+    public Task<string> GenerateChatReplyAsync(
+        string symptomsSummary,
+        IReadOnlyList<string> conversationMessages,
+        string userMessage,
+        IReadOnlyList<AiMedicationContext> medicationContexts,
+        CancellationToken ct = default)
     {
-        // Sau 3 lan tra loi, goi y user complete session
-        if (existingUserMessageCount >= 3)
-            return "Da ghi nhan day du thong tin. Ban co the goi POST /complete de nhan ket luan AI.";
-
-        return "Da ghi nhan. Vui long mo ta them ve thoi gian xuat hien, muc do nghiem trong, " +
-               "hoac cac trieu chung kem theo de toi danh gia chinh xac hon.";
+        // Mock: rule-based reply, khong dung medicationContexts.
+        var existingUserMessageCount = conversationMessages?.Count(m => m.StartsWith("user:")) ?? 0;
+        var reply = existingUserMessageCount >= 3
+            ? "Da ghi nhan day du thong tin. Ban co the goi POST /complete de nhan ket luan AI."
+            : "Da ghi nhan. Vui long mo ta them ve thoi gian xuat hien, muc do nghiem trong, " +
+              "hoac cac trieu chung kem theo de toi danh gia chinh xac hon.";
+        return Task.FromResult(reply);
     }
 
     private static string[] ResolveMedicationKeywords(List<string> symptoms)

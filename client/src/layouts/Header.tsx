@@ -1,8 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useAppSelector } from '@/hooks/redux';
+import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { useAuth } from '@/hooks/useAuth';
 import { useDarkMode } from '@/hooks/useDarkMode';
+import { openCart } from '@/features/cart/cart-slice';
 
 type Language = 'vi' | 'en';
 
@@ -19,6 +20,8 @@ function getStoredLang(): Language {
 export function Header() {
   const role = useAppSelector((s) => s.auth.user?.role);
   const isAdmin = role?.toLowerCase() === 'admin';
+  const cartTotalItems = useAppSelector((s) => s.cart.cart?.totalItems ?? 0);
+  const dispatch = useAppDispatch();
   const { isAuthenticated, logout, user } = useAuth();
   const { theme, toggleTheme } = useDarkMode();
   const navigate = useNavigate();
@@ -134,7 +137,20 @@ export function Header() {
 
         {/* Icons */}
         <div className="flex items-center gap-4">
-          <button className="p-2 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors duration-200">
+          <button 
+            onClick={() => dispatch(openCart())}
+            className="p-2 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors duration-200 relative"
+            title="Giỏ hàng"
+          >
+            <span className="material-symbols-outlined">shopping_cart</span>
+            {cartTotalItems > 0 && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full">
+                {cartTotalItems}
+              </span>
+            )}
+          </button>
+          
+          <button className="p-2 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors duration-200" title="Thông báo">
             <span className="material-symbols-outlined">notifications</span>
           </button>
 

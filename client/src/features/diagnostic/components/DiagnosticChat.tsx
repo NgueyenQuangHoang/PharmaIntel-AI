@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
-import { sendMessageThunk } from '@/features/diagnostic/diagnostic-slice';
+import { createSessionThunk, sendMessageThunk } from '@/features/diagnostic/diagnostic-slice';
 
 const WELCOME_BOT_MESSAGE =
   'Chào bạn, tôi là trợ lý y tế AI. Để tôi có thể hỗ trợ tốt nhất, vui lòng mô tả chi tiết các triệu chứng bạn đang gặp phải hoặc chọn từ danh sách bên phải.';
@@ -20,12 +20,16 @@ export function DiagnosticChat() {
   const dispatch = useAppDispatch();
   const session = useAppSelector((s) => s.diagnostic.currentSession);
   const sendingMessage = useAppSelector((s) => s.diagnostic.sendingMessage);
+  const selectedSymptomIds = useAppSelector((s) => s.diagnostic.selectedSymptomIds);
+  const sessionStatus = useAppSelector((s) => s.diagnostic.sessionStatus);
 
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const messages = session?.messages ?? [];
-  const canSend = !!session && session.status === 'in_progress';
+  const creatingSession = !session && sessionStatus === 'loading';
+  // Cho phep gui khi: dang co session in_progress, HOAC chua co session (auto-tao).
+  const canSend = !session || session.status === 'in_progress';
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -37,10 +41,22 @@ export function DiagnosticChat() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const content = draft.trim();
-    if (!content || !session || sendingMessage) return;
+    if (!content || sendingMessage || creatingSession) return;
     setDraft('');
     try {
-      await dispatch(sendMessageThunk({ sessionId: session.id, content })).unwrap();
+      if (!session) {
+        // Auto-tao session voi trieu chung da chon (co the rong) + tin nhan dau.
+        // Backend: AddMessage se duoc goi ngam qua initialMessage, nen khong can goi
+        // sendMessageThunk lan nua.
+        await dispatch(
+          createSessionThunk({
+            symptomIds: selectedSymptomIds,
+            initialMessage: content,
+          }),
+        ).unwrap();
+      } else {
+        await dispatch(sendMessageThunk({ sessionId: session.id, content })).unwrap();
+      }
     } catch {
       /* error in slice */
     }
@@ -158,18 +174,20 @@ export function DiagnosticChat() {
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            disabled={!canSend || sendingMessage}
+            disabled={!canSend || sendingMessage || creatingSession}
             className="bg-transparent border-none focus:ring-0 flex-1 text-sm outline-none disabled:opacity-50"
             placeholder={
-              canSend
-                ? 'Nhập thêm chi tiết triệu chứng...'
-                : 'Tạo phiên bằng nút Phân tích để bắt đầu chat'
+              !session
+                ? 'Mô tả triệu chứng để bắt đầu chat...'
+                : canSend
+                  ? 'Nhập thêm chi tiết triệu chứng...'
+                  : 'Phiên đã kết thúc'
             }
             type="text"
           />
           <button
             type="submit"
-            disabled={!canSend || sendingMessage || !draft.trim()}
+            disabled={!canSend || sendingMessage || creatingSession || !draft.trim()}
             className="p-2 text-primary hover:bg-primary-fixed rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined">send</span>

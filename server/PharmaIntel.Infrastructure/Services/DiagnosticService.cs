@@ -1,21 +1,21 @@
 // =============================================================================
 // Service: DiagnosticService
-// Chuc nang: Quan ly phien chan doan AI (user-scoped).
+// Chuc nang: Quan ly phien chan doan AI (user-scoped) + RAG Muc 1.
 // Quan he:
 //   DiagnosticSession 1:N DiagnosticMessage
 //   DiagnosticSession N:N Symptom (qua DiagnosticSessionSymptom)
 //   DiagnosticSession 1:1 DiagnosticResult
 //   DiagnosticResult 1:N DiagnosticResultMedication -> Medication
 // Quy tac:
-//   - Create: yeu cau >=1 symptomId hop le. Tao session status="in_progress" +
-//     attach symptoms + system message tom tat trieu chung + (optional) initial
-//     user message.
-//   - AddMessage: chi cho khi session "in_progress". Luu user message, tu sinh
-//     ai reply (mock).
-//   - Complete: in_progress -> analyzing -> run engine -> create result + suggested
-//     medications -> completed. Trong 1 transaction.
+//   - Create: yeu cau >=1 symptomId hop le. Tao session "in_progress" + attach
+//     symptoms + system message tom tat + (optional) initial user message + AI
+//     reply tu Gemini (RAG voi catalog thuoc).
+//   - AddMessage: chi cho khi session "in_progress". Luu user message, retrieve
+//     thuoc lien quan, goi Gemini sinh reply.
+//   - Complete: in_progress -> analyzing -> retrieve thuoc -> Gemini analyze ->
+//     loc SuggestedMedicationIds chi giu ID nam trong allowed (medicationContexts)
+//     -> create result -> completed. Trong 1 transaction.
 //   - Result chi tao 1 lan (UQ_diagnostic_results_session_id). Re-complete -> 409.
-//   - Khi engine thay that (OpenAI/...), chi can register lai IDiagnosticEngine.
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.DTOs.Common;
@@ -29,13 +29,20 @@ namespace PharmaIntel.Infrastructure.Services;
 
 public class DiagnosticService : IDiagnosticService
 {
+    private const int MAX_SUGGESTED_MEDICATIONS = 3;
+
     private readonly PharmaIntelDbContext _db;
     private readonly IDiagnosticEngine _engine;
+    private readonly IAiMedicationRetrievalService _medicationRetrieval;
 
-    public DiagnosticService(PharmaIntelDbContext db, IDiagnosticEngine engine)
+    public DiagnosticService(
+        PharmaIntelDbContext db,
+        IDiagnosticEngine engine,
+        IAiMedicationRetrievalService medicationRetrieval)
     {
         _db = db;
         _engine = engine;
+        _medicationRetrieval = medicationRetrieval;
     }
 
     public async Task<DiagnosticSessionDto> CreateSessionAsync(long userId, CreateDiagnosticSessionRequest req, CancellationToken ct = default)
@@ -71,29 +78,45 @@ public class DiagnosticService : IDiagnosticService
             });
         }
 
-        // System message tom tat trieu chung
-        var summary = "Trieu chung da chon: " + string.Join(", ", symptoms.Select(s => s.Name));
-        _db.DiagnosticMessages.Add(new DiagnosticMessage
-        {
-            SessionId = session.Id,
-            SenderType = "system",
-            Content = summary,
-            SentAt = DateTime.UtcNow
-        });
+        var symptomsSummary = string.Join(", ", symptoms.Select(s => s.Name));
 
-        // Initial user message (neu co)
-        if (!string.IsNullOrWhiteSpace(req.InitialMessage))
+        // System summary chi them khi user co chon trieu chung. Neu chat tu do (khong
+        // chon trieu chung) thi bo qua de chat trong sach.
+        if (symptoms.Count > 0)
         {
             _db.DiagnosticMessages.Add(new DiagnosticMessage
             {
                 SessionId = session.Id,
+                SenderType = "system",
+                Content = "Trieu chung da chon: " + symptomsSummary,
+                SentAt = DateTime.UtcNow
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(req.InitialMessage))
+        {
+            var userText = req.InitialMessage.Trim();
+            _db.DiagnosticMessages.Add(new DiagnosticMessage
+            {
+                SessionId = session.Id,
                 SenderType = "user",
-                Content = req.InitialMessage.Trim(),
+                Content = userText,
                 SentAt = DateTime.UtcNow.AddMilliseconds(1)
             });
 
-            // AI reply tu dong
-            var aiReply = _engine.GenerateAutoReply(req.InitialMessage.Trim(), 1);
+            // RAG: retrieve thuoc lien quan -> goi Gemini sinh reply
+            var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
+                symptomsSummary,
+                new[] { userText },
+                ct);
+
+            var aiReply = await _engine.GenerateChatReplyAsync(
+                symptomsSummary,
+                Array.Empty<string>(),
+                userText,
+                medicationContexts,
+                ct);
+
             _db.DiagnosticMessages.Add(new DiagnosticMessage
             {
                 SessionId = session.Id,
@@ -152,26 +175,46 @@ public class DiagnosticService : IDiagnosticService
 
     public async Task<DiagnosticMessageDto> AddMessageAsync(long userId, long sessionId, AddDiagnosticMessageRequest req, CancellationToken ct = default)
     {
-        var session = await _db.DiagnosticSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct)
-                      ?? throw new NotFoundException("phien chan doan", sessionId);
+        var session = await _db.DiagnosticSessions
+            .Include(s => s.SessionSymptoms).ThenInclude(ss => ss.Symptom)
+            .Include(s => s.Messages)
+            .FirstOrDefaultAsync(s => s.Id == sessionId, ct)
+            ?? throw new NotFoundException("phien chan doan", sessionId);
         if (session.UserId != userId)
             throw new ForbiddenException("Phien chan doan khong thuoc ve ban");
         if (session.Status != "in_progress")
             throw new ConflictException($"Khong the gui tin nhan khi phien o trang thai '{session.Status}'");
 
-        var existingUserMsgCount = await _db.DiagnosticMessages
-            .CountAsync(m => m.SessionId == sessionId && m.SenderType == "user", ct);
+        var userText = req.Content.Trim();
 
         var userMsg = new DiagnosticMessage
         {
             SessionId = sessionId,
             SenderType = "user",
-            Content = req.Content.Trim(),
+            Content = userText,
             SentAt = DateTime.UtcNow
         };
         _db.DiagnosticMessages.Add(userMsg);
 
-        var aiReply = _engine.GenerateAutoReply(req.Content.Trim(), existingUserMsgCount + 1);
+        var symptomsSummary = string.Join(", ", session.SessionSymptoms.Select(ss => ss.Symptom.Name));
+        var conversationMessages = session.Messages
+            .OrderBy(m => m.SentAt)
+            .Select(m => $"{m.SenderType}: {m.Content}")
+            .ToList();
+
+        // RAG: retrieve thuoc lien quan + goi Gemini sinh chat reply
+        var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
+            symptomsSummary,
+            conversationMessages.Concat(new[] { $"user: {userText}" }).ToList(),
+            ct);
+
+        var aiReply = await _engine.GenerateChatReplyAsync(
+            symptomsSummary,
+            conversationMessages,
+            userText,
+            medicationContexts,
+            ct);
+
         _db.DiagnosticMessages.Add(new DiagnosticMessage
         {
             SessionId = sessionId,
@@ -207,15 +250,28 @@ public class DiagnosticService : IDiagnosticService
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-        // Step 1: chuyen sang analyzing de tracker biet dang chay engine
+        // Step 1: chuyen sang analyzing
         session.Status = "analyzing";
         await _db.SaveChangesAsync(ct);
 
-        // Step 2: run engine
+        var symptomsSummary = string.Join(", ", session.SessionSymptoms.Select(ss => ss.Symptom.Name));
+        var conversationMessages = session.Messages
+            .OrderBy(m => m.SentAt)
+            .Select(m => $"{m.SenderType}: {m.Content}")
+            .ToList();
+
+        // Step 2: RAG retrieve thuoc lien quan
+        var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
+            symptomsSummary,
+            conversationMessages,
+            ct);
+
+        // Step 3: run engine voi context thuoc
         var engineReq = new DiagnosticEngineRequest
         {
             SymptomNames = session.SessionSymptoms.Select(ss => ss.Symptom.Name).ToList(),
-            UserMessages = session.Messages.Where(m => m.SenderType == "user").Select(m => m.Content).ToList()
+            UserMessages = session.Messages.Where(m => m.SenderType == "user").Select(m => m.Content).ToList(),
+            MedicationContexts = medicationContexts.ToList()
         };
 
         DiagnosticEngineResult engineResult;
@@ -231,7 +287,7 @@ public class DiagnosticService : IDiagnosticService
             throw;
         }
 
-        // Step 3: create result + suggested medications
+        // Step 4: create result
         var result = new DiagnosticResult
         {
             SessionId = sessionId,
@@ -248,8 +304,28 @@ public class DiagnosticService : IDiagnosticService
         _db.DiagnosticResults.Add(result);
         await _db.SaveChangesAsync(ct);
 
+        // Step 5: loc SuggestedMedicationIds chi giu ID nam trong allowed (RAG guard).
+        // Du Gemini bia ID, backend van loai bo.
+        var allowedMedicationIds = medicationContexts.Select(x => x.Id).ToHashSet();
+
+        var selectedMedicationIds = engineResult.SuggestedMedicationIds
+            .Where(id => allowedMedicationIds.Contains(id))
+            .Distinct()
+            .Take(MAX_SUGGESTED_MEDICATIONS)
+            .ToList();
+
+        // Fallback: neu Gemini khong goi y duoc gi -> lay top OTC tu medicationContexts
+        if (selectedMedicationIds.Count == 0)
+        {
+            selectedMedicationIds = medicationContexts
+                .Where(x => !x.IsPrescriptionRequired)
+                .Select(x => x.Id)
+                .Take(MAX_SUGGESTED_MEDICATIONS)
+                .ToList();
+        }
+
         var priority = 1;
-        foreach (var medId in engineResult.SuggestedMedicationIds.Distinct())
+        foreach (var medId in selectedMedicationIds)
         {
             _db.DiagnosticResultMedications.Add(new DiagnosticResultMedication
             {
@@ -259,7 +335,7 @@ public class DiagnosticService : IDiagnosticService
             });
         }
 
-        // Step 4: AI message tom tat ket luan
+        // Step 6: AI message tom tat ket luan
         _db.DiagnosticMessages.Add(new DiagnosticMessage
         {
             SessionId = sessionId,
@@ -268,7 +344,7 @@ public class DiagnosticService : IDiagnosticService
             SentAt = DateTime.UtcNow
         });
 
-        // Step 5: chuyen sang completed
+        // Step 7: chuyen sang completed
         session.Status = "completed";
         session.CompletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);

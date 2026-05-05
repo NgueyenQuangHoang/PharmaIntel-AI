@@ -4,6 +4,7 @@ import { Footer } from './Footer';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 import { fetchCartThunk } from '@/features/cart/cart-slice';
+import { CartDrawer } from '@/features/medicine-cabinet/components/CartDrawer';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
@@ -24,6 +25,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <MobileBottomNav />
+      <CartDrawer />
     </div>
   );
 }
