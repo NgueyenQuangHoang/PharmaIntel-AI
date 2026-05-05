@@ -7,6 +7,10 @@ import type { MedicationListItem } from '@/features/medications/types';
 
 interface ProductListProps {
   selectedCategoryId: number | null;
+  searchQuery?: string;
+  sortOption?: string;
+  page: number;
+  onPageChange: (page: number) => void;
   onOpenCart?: () => void;
 }
 
@@ -73,18 +77,40 @@ function ProductCard({
   );
 }
 
-export function ProductList({ selectedCategoryId, onOpenCart }: ProductListProps) {
+export function ProductList({ selectedCategoryId, searchQuery, sortOption, page, onPageChange, onOpenCart }: ProductListProps) {
   const dispatch = useAppDispatch();
-  const { items, status, error } = useAppSelector((s) => s.medications.catalog);
+  const { items, status, error, totalCount } = useAppSelector((s) => s.medications.catalog);
   const pendingIds = useAppSelector((s) => s.cart.pendingMedicationIds);
 
+  const pageSize = 9;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
   useEffect(() => {
+    let sortBy: 'name' | 'price' | 'createdAt' | undefined;
+    let sortDesc: boolean | undefined;
+
+    if (sortOption === 'price_asc') {
+      sortBy = 'price';
+      sortDesc = false;
+    } else if (sortOption === 'price_desc') {
+      sortBy = 'price';
+      sortDesc = true;
+    } else if (sortOption === 'popular') {
+      sortBy = 'createdAt';
+      sortDesc = true;
+    }
+
     dispatch(
       fetchCatalogThunk({
         categoryId: selectedCategoryId ?? undefined,
+        q: searchQuery || undefined,
+        sortBy,
+        sortDesc,
+        page,
+        pageSize,
       }),
     );
-  }, [selectedCategoryId, dispatch]);
+  }, [selectedCategoryId, searchQuery, sortOption, page, dispatch]);
 
   const handleAdd = async (medicationId: number) => {
     try {
@@ -96,24 +122,24 @@ export function ProductList({ selectedCategoryId, onOpenCart }: ProductListProps
   };
 
   return (
-    <section className="md:col-span-9">
+    <section className="md:col-span-9 flex flex-col min-h-[500px]">
       {status === 'loading' && items.length === 0 && (
-        <div className="text-center text-on-surface-variant py-20">Đang tải sản phẩm...</div>
+        <div className="text-center text-on-surface-variant py-20 flex-1">Đang tải sản phẩm...</div>
       )}
 
       {status === 'error' && (
-        <div className="rounded-lg bg-error-container/40 border border-error/30 px-4 py-3 text-sm text-error">
+        <div className="rounded-lg bg-error-container/40 border border-error/30 px-4 py-3 text-sm text-error flex-1">
           {error ?? 'Không tải được danh sách thuốc'}
         </div>
       )}
 
       {status !== 'loading' && items.length === 0 && (
-        <div className="text-center text-on-surface-variant py-20">
+        <div className="text-center text-on-surface-variant py-20 flex-1">
           Không có sản phẩm nào trong danh mục này.
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 flex-1">
         {items.map((med) => (
           <ProductCard
             key={med.id}
@@ -123,6 +149,34 @@ export function ProductList({ selectedCategoryId, onOpenCart }: ProductListProps
           />
         ))}
       </div>
+
+      {totalCount > 0 && (
+        <div className="mt-10 flex items-center justify-between border-t border-outline-variant/30 pt-6">
+          <p className="text-sm text-on-surface-variant">
+            Hiển thị <span className="font-semibold text-on-surface">{items.length}</span> /{' '}
+            <span className="font-semibold text-on-surface">{totalCount}</span> sản phẩm
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onPageChange(page - 1)}
+              disabled={page <= 1}
+              className="w-10 h-10 rounded-full flex items-center justify-center border border-outline-variant/50 text-on-surface hover:bg-surface-container-high disabled:opacity-30 transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">arrow_back_ios_new</span>
+            </button>
+            <span className="text-sm font-semibold px-4">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => onPageChange(page + 1)}
+              disabled={page >= totalPages}
+              className="w-10 h-10 rounded-full flex items-center justify-center border border-outline-variant/50 text-on-surface hover:bg-surface-container-high disabled:opacity-30 transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">arrow_forward_ios</span>
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
