@@ -1,6 +1,6 @@
 // =============================================================================
 // EF Core Configuration: Category
-// Chuc nang: Cau hinh bang categories - self-referencing, unique slug.
+// Chuc nang: Cau hinh bang categories - flat list, unique slug.
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -24,10 +24,5 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(e => e.UpdatedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasIndex(e => e.Slug).IsUnique().HasDatabaseName("UQ_categories_slug");
-
-        builder.HasOne(e => e.Parent)
-            .WithMany(e => e.Children)
-            .HasForeignKey(e => e.ParentId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

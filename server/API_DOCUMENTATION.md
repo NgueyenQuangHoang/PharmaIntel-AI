@@ -2636,7 +2636,131 @@ echo
 
 ---
 
-## 17. Endpoint Roadmap (chua lam)
+## 17. Admin Endpoints (yeu cau JWT + role=admin)
+
+Tat ca endpoint trong muc nay yeu cau header `Authorization: Bearer <token>` voi user co `role=admin` trong JWT. User thuong se nhan **403 Forbidden**.
+
+### 17.1 Quan ly nguoi dung — `/api/admin/users`
+
+| Method | Path                              | Mo ta                                                   |
+| ------ | --------------------------------- | ------------------------------------------------------- |
+| GET    | `/api/admin/users`                | List user co paging + filter `q`, `role`, `isActive`    |
+| GET    | `/api/admin/users/{id}`           | Chi tiet user (kem `totalOrders`, `totalSpent`)         |
+| PUT    | `/api/admin/users/{id}/role`      | Doi role giua `"user"` va `"admin"`                     |
+| PUT    | `/api/admin/users/{id}/status`    | Lock/unlock account (`isActive: bool`)                  |
+| DELETE | `/api/admin/users/{id}`           | Soft delete (deactivate + anonymize email)              |
+
+**GET `/api/admin/users`** - Query params:
+- `q` (optional) — tim trong fullName + email
+- `role` (optional) — loc theo `"user"` hoac `"admin"`
+- `isActive` (optional) — `true` / `false`
+- `page` (default 1), `pageSize` (default 20, max 100)
+
+**Response**: `PagedResult<AdminUserDto>` voi cac truong:
+```json
+{
+  "id": 1,
+  "fullName": "Nguyen Van A",
+  "email": "a@example.com",
+  "avatarUrl": null,
+  "role": "user",
+  "isActive": true,
+  "authProvider": "local",
+  "totalOrders": 3,
+  "totalSpent": 1250000,
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+**PUT `/api/admin/users/{id}/role`** - Body:
+```json
+{ "role": "admin" }
+```
+Loi:
+- 409 `ConflictException` neu `id == currentUserId` (khong cho doi role chinh ban than)
+- 400 `ValidationException` neu role khong phai `user`/`admin`
+
+**PUT `/api/admin/users/{id}/status`** - Body:
+```json
+{ "isActive": false }
+```
+Loi: 409 neu `id == currentUserId`.
+
+**DELETE `/api/admin/users/{id}`** — Soft delete:
+- Set `IsActive = false`
+- Anonymize `email` thanh `deleted_{id}_{guid}@deleted.local` (tranh trung UQ)
+- Loi: 409 neu `id == currentUserId`
+
+### 17.2 Thong ke — `/api/admin/stats`
+
+| Method | Path                                   | Mo ta                                            |
+| ------ | -------------------------------------- | ------------------------------------------------ |
+| GET    | `/api/admin/stats/overview`            | Card tong quan (10 chi so)                       |
+| GET    | `/api/admin/stats/revenue?range=7d`    | Time series doanh thu, range = `7d`/`30d`/`90d`  |
+| GET    | `/api/admin/stats/top-medications?limit=10` | Top SP ban chay                              |
+| GET    | `/api/admin/stats/orders-by-status`    | Count don theo status                            |
+
+**GET `/api/admin/stats/overview`** - Response:
+```json
+{
+  "totalUsers": 120,
+  "totalAdmins": 2,
+  "activeUsers": 115,
+  "totalOrders": 340,
+  "totalRevenue": 56000000,
+  "totalMedications": 85,
+  "totalCategories": 12,
+  "ordersToday": 5,
+  "revenueToday": 1200000,
+  "ordersPending": 18
+}
+```
+
+**GET `/api/admin/stats/revenue?range=7d|30d|90d`** - Response:
+```json
+[
+  { "date": "2026-04-28", "revenue": 800000, "orderCount": 3 },
+  { "date": "2026-04-29", "revenue": 1500000, "orderCount": 5 }
+]
+```
+Note: tra ve **du** so ngay theo range, cac ngay khong co don tra `revenue=0, orderCount=0`.
+
+**GET `/api/admin/stats/top-medications?limit=10`** - Response:
+```json
+[
+  { "medicationId": 1, "name": "Paracetamol 500mg", "imageUrl": "...", "quantitySold": 120, "revenue": 2400000 }
+]
+```
+
+**GET `/api/admin/stats/orders-by-status`** - Response:
+```json
+[
+  { "status": "delivered", "count": 200 },
+  { "status": "processing", "count": 30 }
+]
+```
+
+Doanh thu chi tinh tu Order voi `Status != "cancelled"/"refunded"` VA (`PaymentStatus == "paid"` HOAC `Status == "delivered"`).
+
+### Test nhanh
+```bash
+# 1) Login admin
+TOKEN=$(curl -s -X POST http://localhost:5292/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@pharmaintel.local","password":"Admin@123"}' \
+  | grep -oE '"accessToken":"[^"]+"' | sed 's/"accessToken":"//;s/"$//')
+
+# 2) Stats overview
+curl -s http://localhost:5292/api/admin/stats/overview -H "Authorization: Bearer $TOKEN"
+
+# 3) List users
+curl -s "http://localhost:5292/api/admin/users?page=1&pageSize=10" -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 18. Endpoint Roadmap (chua lam)
 
 | Module                      | Status   |
 | --------------------------- | -------- |
@@ -2653,9 +2777,7 @@ echo
 | Health Metrics  | DONE     |
 | Notification    | DONE     |
 | Diagnostic AI   | DONE (mock engine) |
+| Admin (Users + Stats) | DONE |
 | PaymentMethod   | TODO     |
-| Diagnostic AI   | TODO     |
-| Notification    | TODO     |
-| ...             | ...      |
 
 > Khi them endpoint moi, **bo sung muc tuong ung vao file nay** de giu lai context test.

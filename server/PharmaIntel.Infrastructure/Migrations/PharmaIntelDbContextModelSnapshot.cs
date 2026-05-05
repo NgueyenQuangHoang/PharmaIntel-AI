@@ -279,10 +279,6 @@ namespace PharmaIntel.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("name");
 
-                    b.Property<long?>("ParentId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("parent_id");
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -296,8 +292,6 @@ namespace PharmaIntel.Infrastructure.Migrations
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ParentId");
 
                     b.HasIndex("Slug")
                         .IsUnique()
@@ -1937,16 +1931,6 @@ namespace PharmaIntel.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("PharmaIntel.Core.Entities.Category", b =>
-                {
-                    b.HasOne("PharmaIntel.Core.Entities.Category", "Parent")
-                        .WithMany("Children")
-                        .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Parent");
-                });
-
             modelBuilder.Entity("PharmaIntel.Core.Entities.DiagnosticMessage", b =>
                 {
                     b.HasOne("PharmaIntel.Core.Entities.DiagnosticSession", "Session")
@@ -2279,8 +2263,6 @@ namespace PharmaIntel.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaIntel.Core.Entities.Category", b =>
                 {
-                    b.Navigation("Children");
-
                     b.Navigation("Medications");
                 });
 

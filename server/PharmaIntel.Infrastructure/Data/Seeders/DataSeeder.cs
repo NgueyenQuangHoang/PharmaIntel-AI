@@ -65,34 +65,38 @@ public class DataSeeder
     }
 
     // -------------------------------------------------------------------------
-    // Categories
+    // Categories - flat list 8 danh muc chinh.
+    // Idempotent per-slug: chay duoc tren ca DB fresh va DB hien huu.
     // -------------------------------------------------------------------------
     private async Task SeedCategoriesAsync(CancellationToken ct)
     {
-        if (await _db.Categories.AnyAsync(ct)) return;
-
         var now = DateTime.UtcNow;
-        var names = new[]
+
+        var seedItems = new[]
         {
-            "Cam cum",
-            "Tieu hoa",
-            "Dau va ha sot",
-            "Vitamin va khoang chat",
-            "Da lieu",
-            "Phu nu va tre em"
+            new { Name = "Thuốc",                 Order = 1 },
+            new { Name = "Thực phẩm chức năng",   Order = 2 },
+            new { Name = "Dược mỹ phẩm",          Order = 3 },
+            new { Name = "Thiết bị y tế",         Order = 4 },
+            new { Name = "Vật tư y tế",           Order = 5 },
+            new { Name = "Chăm sóc cá nhân",      Order = 6 },
+            new { Name = "Mẹ và bé",              Order = 7 },
+            new { Name = "Đông y & thảo dược",    Order = 8 },
         };
 
-        var order = 1;
-        foreach (var name in names)
+        foreach (var s in seedItems)
         {
+            var slug = SlugHelper.ToSlug(s.Name);
+            if (await _db.Categories.AnyAsync(c => c.Slug == slug, ct)) continue;
+
             _db.Categories.Add(new Category
             {
-                Name = name,
-                Slug = SlugHelper.ToSlug(name),
-                DisplayOrder = order++,
+                Name = s.Name,
+                Slug = slug,
+                DisplayOrder = s.Order,
                 IsActive = true,
                 CreatedAt = now,
-                UpdatedAt = now
+                UpdatedAt = now,
             });
         }
         await _db.SaveChangesAsync(ct);
@@ -109,70 +113,68 @@ public class DataSeeder
         var cats = await _db.Categories.AsNoTracking().ToDictionaryAsync(c => c.Slug, c => c.Id, ct);
         long Cat(string slug) => cats[slug];
 
-        var painSlug    = SlugHelper.ToSlug("Dau va ha sot");
-        var coldSlug    = SlugHelper.ToSlug("Cam cum");
-        var digestSlug  = SlugHelper.ToSlug("Tieu hoa");
-        var vitaminSlug = SlugHelper.ToSlug("Vitamin va khoang chat");
+        var thuocSlug = SlugHelper.ToSlug("Thuốc");
+        var tpcnSlug  = SlugHelper.ToSlug("Thực phẩm chức năng");
 
         var now = DateTime.UtcNow;
         var meds = new[]
         {
-            new Medication { Sku = "MED-PARA-500", Name = "Paracetamol 500mg",   GenericName = "Paracetamol", CategoryId = Cat(painSlug),
+            new Medication { Sku = "MED-PARA-500", Name = "Paracetamol 500mg",   GenericName = "Paracetamol", CategoryId = Cat(thuocSlug),
                 Manufacturer = "Stada", Price = 15000m, DiscountPercent = 5m, StockQuantity = 500, Packaging = "Hop 10 vi x 10 vien",
                 ActiveIngredients = "Paracetamol 500mg", UsageInstructions = "Uong 1-2 vien moi 4-6 gio khi sot/dau, khong qua 8 vien/ngay.",
                 IsFeatured = true, IsBestSeller = true, IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-IBU-400",  Name = "Ibuprofen 400mg",      GenericName = "Ibuprofen", CategoryId = Cat(painSlug),
+            new Medication { Sku = "MED-IBU-400",  Name = "Ibuprofen 400mg",      GenericName = "Ibuprofen", CategoryId = Cat(thuocSlug),
                 Manufacturer = "Hau Giang", Price = 25000m, DiscountPercent = 0m, StockQuantity = 300, Packaging = "Hop 3 vi x 10 vien",
                 ActiveIngredients = "Ibuprofen 400mg", UsageInstructions = "Uong 1 vien moi 6-8 gio sau an.",
                 IsBestSeller = true, IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-DECOL",    Name = "Decolgen Forte",       CategoryId = Cat(coldSlug),
+            new Medication { Sku = "MED-DECOL",    Name = "Decolgen Forte",       CategoryId = Cat(thuocSlug),
                 Manufacturer = "United Pharma", Price = 32000m, DiscountPercent = 10m, StockQuantity = 250, Packaging = "Hop 25 vi x 4 vien",
                 ActiveIngredients = "Paracetamol + Phenylephrin + Chlorpheniramin", UsageInstructions = "Uong 1 vien khi co trieu chung cam cum.",
                 IsFeatured = true, IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-STREP",    Name = "Strepsils huong mat",  CategoryId = Cat(coldSlug),
+            new Medication { Sku = "MED-STREP",    Name = "Strepsils huong mat",  CategoryId = Cat(thuocSlug),
                 Manufacturer = "Reckitt", Price = 45000m, DiscountPercent = 0m, StockQuantity = 200, Packaging = "Hop 24 vien ngam",
                 UsageInstructions = "Ngam 1 vien moi 2-3 gio khi dau hong.",
                 IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-LORAT",    Name = "Loratadine 10mg",      CategoryId = Cat(coldSlug),
+            new Medication { Sku = "MED-LORAT",    Name = "Loratadine 10mg",      CategoryId = Cat(thuocSlug),
                 Manufacturer = "DHG", Price = 28000m, DiscountPercent = 0m, StockQuantity = 180, Packaging = "Hop 1 vi x 10 vien",
                 ActiveIngredients = "Loratadine 10mg", UsageInstructions = "Uong 1 vien moi ngay khi di ung / so mui.",
                 IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-SMEC",     Name = "Smecta",               CategoryId = Cat(digestSlug),
+            new Medication { Sku = "MED-SMEC",     Name = "Smecta",               CategoryId = Cat(thuocSlug),
                 Manufacturer = "Ipsen", Price = 65000m, DiscountPercent = 5m, StockQuantity = 150, Packaging = "Hop 30 goi bot",
                 ActiveIngredients = "Diosmectite", UsageInstructions = "Pha 1 goi voi 50ml nuoc, uong sau bua an.",
                 IsBestSeller = true, IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-BERB",     Name = "Berberin 50mg",        CategoryId = Cat(digestSlug),
+            new Medication { Sku = "MED-BERB",     Name = "Berberin 50mg",        CategoryId = Cat(thuocSlug),
                 Manufacturer = "Mekophar", Price = 18000m, DiscountPercent = 0m, StockQuantity = 220, Packaging = "Lo 100 vien",
                 UsageInstructions = "Uong 4-6 vien/ngay khi tieu chay nhe.",
                 IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-DOMP",     Name = "Domperidon 10mg",      CategoryId = Cat(digestSlug),
+            new Medication { Sku = "MED-DOMP",     Name = "Domperidon 10mg",      CategoryId = Cat(thuocSlug),
                 Manufacturer = "Sanofi", Price = 22000m, DiscountPercent = 0m, StockQuantity = 140, Packaging = "Hop 3 vi x 10 vien",
                 ActiveIngredients = "Domperidon", UsageInstructions = "Uong 1 vien truoc bua an 15-30 phut khi buon non.",
                 IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-ENTERO",   Name = "Enterogermina",        CategoryId = Cat(digestSlug),
+            new Medication { Sku = "MED-ENTERO",   Name = "Enterogermina",        CategoryId = Cat(thuocSlug),
                 Manufacturer = "Sanofi", Price = 95000m, DiscountPercent = 8m, StockQuantity = 160, Packaging = "Hop 20 ong x 5ml",
                 UsageInstructions = "Uong 1-2 ong/ngay de ho tro he tieu hoa.",
                 IsFeatured = true, IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-ORE",      Name = "Oresol bu dien giai",  CategoryId = Cat(digestSlug),
+            new Medication { Sku = "MED-ORE",      Name = "Oresol bu dien giai",  CategoryId = Cat(thuocSlug),
                 Manufacturer = "Bidipharm", Price = 8000m, DiscountPercent = 0m, StockQuantity = 400, Packaging = "Goi 27.9g pha 1 lit",
                 UsageInstructions = "Pha 1 goi voi 1 lit nuoc dun soi de nguoi, uong dan trong 24h.",
                 IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-VITC",     Name = "Vitamin C 1000mg",     CategoryId = Cat(vitaminSlug),
+            new Medication { Sku = "MED-VITC",     Name = "Vitamin C 1000mg",     CategoryId = Cat(tpcnSlug),
                 Manufacturer = "Bayer", Price = 120000m, DiscountPercent = 12m, StockQuantity = 280, Packaging = "Tup 20 vien sui",
                 UsageInstructions = "Hoa tan 1 vien sui voi 200ml nuoc, uong moi sang.",
                 IsFeatured = true, IsBestSeller = true, IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-            new Medication { Sku = "MED-ZINC",     Name = "Kem gluconate 70mg",   CategoryId = Cat(vitaminSlug),
+            new Medication { Sku = "MED-ZINC",     Name = "Kem gluconate 70mg",   CategoryId = Cat(tpcnSlug),
                 Manufacturer = "Mediplantex", Price = 55000m, DiscountPercent = 0m, StockQuantity = 130, Packaging = "Hop 30 vien",
                 UsageInstructions = "Uong 1 vien/ngay sau bua an.",
                 IsPrescriptionRequired = false, IsActive = true, CreatedAt = now, UpdatedAt = now }

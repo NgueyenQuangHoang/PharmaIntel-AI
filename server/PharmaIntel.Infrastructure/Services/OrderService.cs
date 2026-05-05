@@ -183,6 +183,46 @@ public class OrderService : IOrderService
         };
     }
 
+    public async Task<PagedResult<AdminOrderListItemDto>> AdminListAllAsync(OrderListQuery q, CancellationToken ct = default)
+    {
+        q.Normalize();
+
+        var query = _db.Orders.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrEmpty(q.Status)) query = query.Where(o => o.Status == q.Status);
+        if (!string.IsNullOrEmpty(q.PaymentStatus)) query = query.Where(o => o.PaymentStatus == q.PaymentStatus);
+
+        var total = await query.CountAsync(ct);
+
+        var items = await query
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip((q.Page - 1) * q.PageSize).Take(q.PageSize)
+            .Select(o => new AdminOrderListItemDto
+            {
+                Id = o.Id,
+                OrderCode = o.OrderCode,
+                Subtotal = o.Subtotal,
+                ShippingFee = o.ShippingFee,
+                Total = o.Total,
+                Status = o.Status,
+                PaymentStatus = o.PaymentStatus,
+                PaymentTypeSnapshot = o.PaymentTypeSnapshot,
+                ItemCount = o.Items.Count,
+                CreatedAt = o.CreatedAt,
+                UserId = o.UserId,
+                UserFullName = o.User.FullName,
+                UserEmail = o.User.Email
+            })
+            .ToListAsync(ct);
+
+        return new PagedResult<AdminOrderListItemDto>
+        {
+            Items = items,
+            Page = q.Page,
+            PageSize = q.PageSize,
+            TotalCount = total
+        };
+    }
+
     public async Task<OrderDto> GetByIdAsync(long userId, long orderId, CancellationToken ct = default)
     {
         var order = await _db.Orders.AsNoTracking()

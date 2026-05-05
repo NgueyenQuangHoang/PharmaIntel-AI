@@ -17,4 +17,7 @@ public interface IOrderService
 
     // Admin: any state machine transition, khong check ownership.
     Task<OrderDto> AdminUpdateStatusAsync(long orderId, UpdateOrderStatusRequest request, CancellationToken ct = default);
+
+    // Admin: liet ke tat ca don tu moi user, kem snapshot user (fullName, email).
+    Task<PagedResult<AdminOrderListItemDto>> AdminListAllAsync(OrderListQuery query, CancellationToken ct = default);
 }

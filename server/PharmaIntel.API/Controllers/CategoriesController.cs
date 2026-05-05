@@ -1,13 +1,12 @@
 // =============================================================================
 // Controller: CategoriesController
-// Chuc nang: CRUD danh muc thuoc + endpoint xem cay danh muc.
+// Chuc nang: CRUD danh muc thuoc (flat list).
 // Endpoints:
 //   GET    /api/categories            list co phan trang + filter
-//   GET    /api/categories/tree       cay danh muc (tat ca cap)
 //   GET    /api/categories/{id}       chi tiet
 //   POST   /api/categories            tao moi (auth)
 //   PUT    /api/categories/{id}       cap nhat (auth)
-//   DELETE /api/categories/{id}       xoa (auth) - chi xoa duoc neu khong co con/thuoc
+//   DELETE /api/categories/{id}       xoa (auth) - chi xoa duoc neu khong co thuoc
 // =============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,11 +31,6 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<PagedResult<CategoryDto>>> List(
         [FromQuery] CategoryListQuery query, CancellationToken ct)
         => Ok(await _service.ListAsync(query, ct));
-
-    [HttpGet("tree")]
-    public async Task<ActionResult<List<CategoryTreeNode>>> Tree(
-        [FromQuery] bool includeInactive = false, CancellationToken ct = default)
-        => Ok(await _service.GetTreeAsync(includeInactive, ct));
 
     [HttpGet("{id:long}")]
     public async Task<ActionResult<CategoryDto>> Get(long id, CancellationToken ct)

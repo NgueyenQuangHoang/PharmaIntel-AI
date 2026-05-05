@@ -1,10 +1,9 @@
 // =============================================================================
 // Service: CategoryService
-// Chuc nang: Nghiep vu CRUD danh muc - tim kiem co phan trang, cay, them/sua/xoa.
+// Chuc nang: Nghiep vu CRUD danh muc - flat list, tim kiem co phan trang.
 // Quy tac:
 //   - Slug duy nhat (UQ_categories_slug). Trung -> ConflictException(409)
-//   - Khong cho ParentId tro vao chinh no hoac vong lap
-//   - Khong xoa cung neu danh muc co Children hoac Medications -> ConflictException
+//   - Khong xoa cung neu danh muc dang chua Medications -> ConflictException
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.DTOs.Categories;
@@ -37,8 +36,6 @@ public class CategoryService : ICategoryService
             var k = q.Q.Trim().ToLower();
             query = query.Where(c => c.Name.ToLower().Contains(k) || c.Slug.Contains(k));
         }
-        if (q.RootOnly) query = query.Where(c => c.ParentId == null);
-        else if (q.ParentId.HasValue) query = query.Where(c => c.ParentId == q.ParentId);
 
         if (q.IsActive.HasValue) query = query.Where(c => c.IsActive == q.IsActive);
 
@@ -51,8 +48,6 @@ public class CategoryService : ICategoryService
             .Select(c => new CategoryDto
             {
                 Id = c.Id,
-                ParentId = c.ParentId,
-                ParentName = c.Parent != null ? c.Parent.Name : null,
                 Name = c.Name,
                 Slug = c.Slug,
                 Icon = c.Icon,
@@ -73,35 +68,6 @@ public class CategoryService : ICategoryService
         };
     }
 
-    public async Task<List<CategoryTreeNode>> GetTreeAsync(bool includeInactive, CancellationToken ct = default)
-    {
-        var all = await _db.Categories.AsNoTracking()
-            .Where(c => includeInactive || c.IsActive)
-            .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name)
-            .ToListAsync(ct);
-
-        var lookup = all.ToDictionary(c => c.Id, c => new CategoryTreeNode
-        {
-            Id = c.Id,
-            Name = c.Name,
-            Slug = c.Slug,
-            Icon = c.Icon,
-            DisplayOrder = c.DisplayOrder,
-            IsActive = c.IsActive
-        });
-
-        var roots = new List<CategoryTreeNode>();
-        foreach (var c in all)
-        {
-            var node = lookup[c.Id];
-            if (c.ParentId.HasValue && lookup.TryGetValue(c.ParentId.Value, out var parent))
-                parent.Children.Add(node);
-            else
-                roots.Add(node);
-        }
-        return roots;
-    }
-
     public async Task<CategoryDto> GetByIdAsync(long id, CancellationToken ct = default)
     {
         var dto = await _db.Categories.AsNoTracking()
@@ -109,8 +75,6 @@ public class CategoryService : ICategoryService
             .Select(c => new CategoryDto
             {
                 Id = c.Id,
-                ParentId = c.ParentId,
-                ParentName = c.Parent != null ? c.Parent.Name : null,
                 Name = c.Name,
                 Slug = c.Slug,
                 Icon = c.Icon,
@@ -134,15 +98,8 @@ public class CategoryService : ICategoryService
         if (await _db.Categories.AnyAsync(c => c.Slug == slug, ct))
             throw new ConflictException($"Slug '{slug}' da ton tai");
 
-        if (req.ParentId.HasValue)
-        {
-            var parentExists = await _db.Categories.AnyAsync(c => c.Id == req.ParentId, ct);
-            if (!parentExists) throw new NotFoundException("danh muc cha", req.ParentId);
-        }
-
         var entity = new Category
         {
-            ParentId = req.ParentId,
             Name = req.Name.Trim(),
             Slug = slug,
             Icon = req.Icon,
@@ -167,25 +124,6 @@ public class CategoryService : ICategoryService
         if (slug != entity.Slug && await _db.Categories.AnyAsync(c => c.Slug == slug && c.Id != id, ct))
             throw new ConflictException($"Slug '{slug}' da ton tai");
 
-        if (req.ParentId.HasValue)
-        {
-            if (req.ParentId == id)
-                throw new ValidationException("parentId", "Danh muc khong the la cha cua chinh no");
-
-            // chong vong lap: parent chain khong duoc chua id hien tai
-            var pid = req.ParentId;
-            while (pid.HasValue)
-            {
-                if (pid == id)
-                    throw new ValidationException("parentId", "Khong the dat parent gay vong lap");
-                pid = await _db.Categories.Where(c => c.Id == pid).Select(c => c.ParentId).FirstOrDefaultAsync(ct);
-            }
-
-            var parentExists = await _db.Categories.AnyAsync(c => c.Id == req.ParentId, ct);
-            if (!parentExists) throw new NotFoundException("danh muc cha", req.ParentId);
-        }
-
-        entity.ParentId = req.ParentId;
         entity.Name = req.Name.Trim();
         entity.Slug = slug;
         entity.Icon = req.Icon;
@@ -200,13 +138,10 @@ public class CategoryService : ICategoryService
     public async Task DeleteAsync(long id, CancellationToken ct = default)
     {
         var entity = await _db.Categories
-            .Include(c => c.Children)
             .Include(c => c.Medications)
             .FirstOrDefaultAsync(c => c.Id == id, ct)
             ?? throw new NotFoundException("danh muc", id);
 
-        if (entity.Children.Count > 0)
-            throw new ConflictException($"Khong the xoa - danh muc co {entity.Children.Count} danh muc con");
         if (entity.Medications.Count > 0)
             throw new ConflictException($"Khong the xoa - danh muc dang chua {entity.Medications.Count} thuoc");
 

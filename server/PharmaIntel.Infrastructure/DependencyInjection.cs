@@ -42,6 +42,8 @@ public static class DependencyInjection
         services.AddScoped<IHealthMetricService, HealthMetricService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ISymptomService, SymptomService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
+        services.AddScoped<IAdminStatsService, AdminStatsService>();
         // Gemini AI engine (real). HttpClient duoc tao qua HttpClientFactory.
         services.AddHttpClient<IDiagnosticEngine, GeminiDiagnosticEngine>((sp, client) =>
         {

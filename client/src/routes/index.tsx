@@ -6,13 +6,31 @@ import { MedicineCabinetPage } from '@/pages/medicine-cabinet-page';
 import { ProfilePage } from '@/pages/profile-page';
 import { LoginPage } from '@/pages/login-page';
 import { RegisterPage } from '@/pages/register-page';
+import { AdminDashboardPage } from '@/pages/admin-dashboard-page';
+import { AdminUsersPage } from '@/pages/admin-users-page';
+import { AdminCategoriesPage } from '@/pages/admin-categories-page';
+import { AdminMedicationsPage } from '@/pages/admin-medications-page';
+import { AdminOrdersPage } from '@/pages/admin-orders-page';
 import { MainLayout } from '@/layouts/MainLayout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-function MainLayoutWrapper() {
+function ProtectedLayoutWrapper() {
   return (
-    <MainLayout>
-      <Outlet />
-    </MainLayout>
+    <ProtectedRoute>
+      <MainLayout>
+        <Outlet />
+      </MainLayout>
+    </ProtectedRoute>
+  );
+}
+
+function AdminLayoutWrapper() {
+  return (
+    <ProtectedRoute requireRole="admin">
+      <MainLayout>
+        <Outlet />
+      </MainLayout>
+    </ProtectedRoute>
   );
 }
 
@@ -24,13 +42,22 @@ export function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Global layout for the rest of the application */}
-        <Route element={<MainLayoutWrapper />}>
+        {/* Global layout - chi truy cap khi da dang nhap */}
+        <Route element={<ProtectedLayoutWrapper />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/diagnostic" element={<DiagnosticPage />} />
           <Route path="/diagnostic/result" element={<DiagnosticResultPage />} />
           <Route path="/medicine" element={<MedicineCabinetPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+        </Route>
+
+        {/* Admin area - yeu cau role=admin */}
+        <Route element={<AdminLayoutWrapper />}>
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/categories" element={<AdminCategoriesPage />} />
+          <Route path="/admin/medications" element={<AdminMedicationsPage />} />
+          <Route path="/admin/orders" element={<AdminOrdersPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

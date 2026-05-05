@@ -24,9 +24,5 @@ public class CategoryCreateRequestValidator : AbstractValidator<CategoryCreateRe
 
         RuleFor(x => x.DisplayOrder)
             .GreaterThanOrEqualTo(0).WithMessage("DisplayOrder phai >= 0");
-
-        RuleFor(x => x.ParentId)
-            .GreaterThan(0).When(x => x.ParentId.HasValue)
-            .WithMessage("ParentId khong hop le");
     }
 }

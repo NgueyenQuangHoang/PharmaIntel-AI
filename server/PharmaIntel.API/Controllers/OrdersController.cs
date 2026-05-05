@@ -53,4 +53,11 @@ public class OrdersController : ControllerBase
     public async Task<ActionResult<OrderDto>> UpdateStatus(
         long id, [FromBody] UpdateOrderStatusRequest request, CancellationToken ct)
         => Ok(await _service.AdminUpdateStatusAsync(id, request, ct));
+
+    // Admin: liet ke tat ca don tu moi user (kem fullName, email).
+    [Authorize(Roles = "admin")]
+    [HttpGet("admin/all")]
+    public async Task<ActionResult<PagedResult<AdminOrderListItemDto>>> AdminListAll(
+        [FromQuery] OrderListQuery query, CancellationToken ct)
+        => Ok(await _service.AdminListAllAsync(query, ct));
 }

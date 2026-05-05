@@ -18,6 +18,5 @@ public class CategoryUpdateRequestValidator : AbstractValidator<CategoryUpdateRe
                 .WithMessage("Slug chi gom chu thuong, so va dau gach ngang");
         RuleFor(x => x.Icon).MaximumLength(100);
         RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.ParentId).GreaterThan(0).When(x => x.ParentId.HasValue);
     }
 }

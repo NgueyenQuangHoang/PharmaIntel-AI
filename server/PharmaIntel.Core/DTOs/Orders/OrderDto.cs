@@ -41,3 +41,11 @@ public class OrderDto : OrderListItemDto
     public DateTime UpdatedAt { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
 }
+
+// Admin view: them user info de admin biet don nay cua ai
+public class AdminOrderListItemDto : OrderListItemDto
+{
+    public long UserId { get; set; }
+    public string UserFullName { get; set; } = string.Empty;
+    public string UserEmail { get; set; } = string.Empty;
+}
