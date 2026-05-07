@@ -1,0 +1,109 @@
+# =============================================================================
+# docker-compose.yml - PharmaIntel AI full stack (db + api + web)
+# Stack:
+#   - db  : SQL Server 2022 (mcr.microsoft.com/mssql/server)
+#   - api : PharmaIntel.API (.NET 10) - build tu ./server/Dockerfile
+#   - web : React + Vite + nginx   - build tu ./client/Dockerfile
+#
+# Su dung:
+#   1) Sao chep .env.example -> .env, dien gia tri thuc
+#   2) docker compose up -d --build
+#   3) Truy cap http://localhost:${WEB_PORT}
+#
+# Ghi chu:
+#   - VITE_API_URL duoc inline vao bundle frontend luc BUILD. Mac dinh tro ve
+#     http://localhost:${API_PORT}/api de browser cua dev goi sang api container
+#     da expose ra host. Khi deploy ra prod, build lai web image voi URL public.
+#   - SA password cua SQL Server bat buoc strong (toi thieu 8 ky tu, du loai).
+# =============================================================================
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: pharmaintel-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD}
+      MSSQL_PID: "Developer"
+    ports:
+      - "${DB_PORT:-1433}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      # /opt/mssql-tools18/bin/sqlcmd co san trong image 2022-latest (TLS, can -C)
+      test:
+        - "CMD-SHELL"
+        - "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - pharmaintel
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: pharmaintel-api:latest
+    container_name: pharmaintel-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: http://+:8080
+      # Connection string tro vao service `db` qua mang noi bo
+      ConnectionStrings__DefaultConnection: "Server=db,1433;Database=PharmaIntelDB;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;"
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: PharmaIntelAI
+      Jwt__Audience: PharmaIntelAI
+      Jwt__ExpireMinutes: "60"
+      Gemini__ApiKey: ${GEMINI_API_KEY}
+      Gemini__Enabled: "true"
+      # CORS: danh sach origin frontend (CSV). Override sach se appsettings.json,
+      # mac dinh dung port web da expose ra host.
+      Cors__AllowedOriginsCsv: ${WEB_ORIGINS:-http://localhost:${WEB_PORT:-5173}}
+      Bootstrap__MigrateOnStartup: "true"
+      Bootstrap__Seed__Enabled: ${SEED_ON_STARTUP:-false}
+    ports:
+      - "${API_PORT:-5292}:8080"
+    healthcheck:
+      # Readiness: check ca DB. Web cho api ready moi nhan request that.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - pharmaintel
+
+  web:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        # Browser cua dev goi vao api da expose ra host port - KHONG dung
+        # ten service `api` (browser khong vao duoc mang noi bo cua compose).
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5292/api}
+    image: pharmaintel-web:latest
+    container_name: pharmaintel-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-5173}:8080"
+    restart: unless-stopped
+    networks:
+      - pharmaintel
+
+volumes:
+  mssql-data:
+    name: pharmaintel-mssql-data
+
+networks:
+  pharmaintel:
+    name: pharmaintel-net
+    driver: bridge

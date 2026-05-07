@@ -1,0 +1,38 @@
+# =============================================================================
+# .dockerignore - giam build context, tranh leak file nhay cam.
+# =============================================================================
+
+# Node / build artifacts
+node_modules
+dist
+build
+.vite
+*.log
+npm-debug.log*
+
+# IDE / tooling
+.vscode/
+.idea/
+.vs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Env (Vite tu doc .env.* luc build neu can; ta inject qua ARG nen khong copy)
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker artifacts
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Docs
+README.md

@@ -8,13 +8,19 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using PharmaIntel.API.Extensions;
 using PharmaIntel.API.Filters;
 using PharmaIntel.API.Middleware;
 using PharmaIntel.Infrastructure;
+using PharmaIntel.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// === Validate cau hinh bat buoc (fail-fast) ===
+// Chay truoc moi DI registration de loi xuat hien som va ro rang.
+builder.Configuration.ValidateRequiredConfig(builder.Environment);
 
 // === Infrastructure: DbContext + Auth + JWT services ===
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -44,21 +50,57 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // === CORS - Cho phep React client truy cap ===
+// Cho phep cau hinh qua hai cach (gop lai, loai trung):
+//   1) "Cors:AllowedOrigins": ["http://...", ...]   - dang mang trong appsettings.json
+//   2) "Cors:AllowedOriginsCsv": "http://a, http://b" - dang CSV, tien khi truyen qua
+//      env var (vd. docker-compose: Cors__AllowedOriginsCsv=...).
+// Mang & env var indexed (Cors__AllowedOrigins__0) merge theo index nen kho clear
+// gia tri tu appsettings.json - dung CSV de override sach se trong container.
+var corsOrigins = ResolveCorsOrigins(builder.Configuration);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
     {
-        policy.WithOrigins(
-                builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"])
+        policy.WithOrigins(corsOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
 });
 
+static string[] ResolveCorsOrigins(IConfiguration config)
+{
+    var fromArray = config.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+    var fromCsv = (config["Cors:AllowedOriginsCsv"] ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    var merged = fromArray
+        .Concat(fromCsv)
+        .Select(o => o.Trim().TrimEnd('/'))
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    return merged.Length > 0 ? merged : ["http://localhost:5173"];
+}
+
 // === Global Exception Handler + ProblemDetails (chuan RFC 7807) ===
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+
+// === Health Checks ===
+// - "live"  : tag liveness  - process con song khong (luon tra healthy)
+// - "ready" : tag readiness - DB ket noi duoc khong
+// Dung tag de filter endpoint:
+//   GET /health        -> moi check (overall)
+//   GET /health/live   -> chi tag "live"
+//   GET /health/ready  -> chi tag "ready"
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy("API process alive"), tags: ["live"])
+    .AddDbContextCheck<PharmaIntelDbContext>(
+        name: "database",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: ["ready"]);
 
 // === Controllers + Validation Filter ===
 builder.Services.AddControllers(options =>
@@ -120,5 +162,23 @@ app.UseCors("AllowClient");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// === Health endpoints (KHONG yeu cau auth) ===
+// Tra JSON gon: {"status":"Healthy","checks":[{"name":"database","status":"Healthy"}]}
+var healthOptions = new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = HealthResponseWriter.WriteJson
+};
+app.MapHealthChecks("/health", healthOptions).AllowAnonymous();
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("live"),
+    ResponseWriter = HealthResponseWriter.WriteJson
+}).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteJson
+}).AllowAnonymous();
 
 app.Run();

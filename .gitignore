@@ -1,0 +1,11 @@
+# Root-level .gitignore - chan secret cua docker-compose.
+# .gitignore chi tiet cho .NET nam o server/.gitignore.
+
+# Docker compose env (chua password DB, JWT key, Gemini key luc dev local)
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+.DS_Store

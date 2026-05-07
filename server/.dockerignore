@@ -1,0 +1,54 @@
+# =============================================================================
+# .dockerignore - giam build context, tranh leak file nhay cam vao image.
+# =============================================================================
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE / tooling
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docs noi bo (khong can trong image)
+agent.md
+AI_ENGINE.md
+DEMO_FLOW.md
+README.md
+API_DOCUMENTATION.md
+CONFIGURATION.md
+erd_analysis.md
+erd_specification.md
+cleanup_data.sql
+
+# Secret / env (du da co .gitignore o root, chan them tai day)
+**/appsettings.*.local.json
+**/secrets.json
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pfx
+**/*.key
+
+# Test results
+**/TestResults/
+**/*.coverage
+
+# OS
+**/Thumbs.db
+**/.DS_Store
+
+# Docker artifacts
+Dockerfile*
+.dockerignore
+docker-compose*.yml
