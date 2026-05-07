@@ -15,40 +15,6 @@ export function HealthProgressChart() {
     return dayNames[d.getDay()];
   });
 
-  const calculateHeights = (dayDate: Date) => {
-    if (!data) return { primary: 'h-0', secondary: 'h-0', hoverPrimary: 'group-hover:h-0' };
-    
-    // Find metric for this day
-    const metricStrDate = dayDate.toISOString().split('T')[0];
-    const dayMetrics = data.items.filter(m => m.recordedAt.startsWith(metricStrDate));
-    
-    if (dayMetrics.length === 0) {
-      // Mock fallback if no real data
-      return { primary: 'h-0', secondary: 'h-0', hoverPrimary: 'group-hover:h-0' };
-    }
-
-    // Try to find blood pressure and heart rate
-    const bp = dayMetrics.find(m => m.metricType === 'blood_pressure');
-    const hr = dayMetrics.find(m => m.metricType === 'heart_rate');
-    
-    // Fake logic to map to tailwind heights based on values (120 => 60%, 80 => 40%)
-    let hPrimary = 0;
-    let hSecondary = 0;
-    
-    if (hr) {
-      hPrimary = Math.min(100, Math.max(10, Math.round((hr.valueNumber / 120) * 100)));
-    }
-    if (bp) {
-      hSecondary = Math.min(100, Math.max(10, Math.round((bp.valueNumber / 180) * 100)));
-    }
-    
-    return {
-      primary: `h-[${hPrimary}%]`,
-      secondary: `h-[${hSecondary}%]`,
-      hoverPrimary: `group-hover:h-[${Math.min(100, hPrimary + 10)}%]`
-    };
-  };
-
   return (
     <section className="md:col-span-8 bg-surface-container-lowest p-8 rounded-xl shadow-sm border-l-4 border-primary">
       <div className="flex justify-between items-center mb-8">
@@ -62,9 +28,8 @@ export function HealthProgressChart() {
       
       <div className="h-64 flex items-end justify-between gap-4 px-2">
         {days.map((day, idx) => {
-          const heights = calculateHeights(day);
-          // If using arbitrary tailwind heights like h-[60%], they need to be safelisted or injected via style
-          // For simplicity in dynamic heights, let's use style
+          // Heights duoc tinh truc tiep tu metric ben duoi va inject qua inline style
+          // (de tranh tailwind safelist cho gia tri arbitrary nhu h-[60%]).
           const bpMetric = data?.items.find(m => m.recordedAt.startsWith(day.toISOString().split('T')[0]) && m.metricType === 'blood_pressure');
           const hrMetric = data?.items.find(m => m.recordedAt.startsWith(day.toISOString().split('T')[0]) && m.metricType === 'heart_rate');
           

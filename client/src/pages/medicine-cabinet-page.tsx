@@ -14,8 +14,12 @@ export function MedicineCabinetPage() {
   const [sortOption, setSortOption] = useState('popular');
   const [page, setPage] = useState(1);
 
-  // Reset page when search, category, or sort changes
+  // Reset page khi search/category/sort doi.
+  // Day la pattern reset state co chu y - khong phai cascading render khong kiem soat.
+  // Disable rule react-hooks/set-state-in-effect cho dong nay vi day la use case
+  // hop le (dong bo state dieu khien voi state filter).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [search, selectedCategoryId, sortOption]);
 

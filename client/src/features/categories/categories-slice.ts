@@ -30,7 +30,7 @@ export const fetchCategoriesThunk = createAsyncThunk<Category[], void, { rejectV
   'categories/fetch',
   async (_, { rejectWithValue }) => {
     try {
-      const paged = await categoriesApi.list({ pageSize: 100, isActive: true, rootOnly: true })
+      const paged = await categoriesApi.list({ pageSize: 100, isActive: true })
       return paged.items.slice().sort((a, b) => a.displayOrder - b.displayOrder)
     } catch (err) {
       return rejectWithValue(extractError(err, 'Khong tai duoc danh muc'))
