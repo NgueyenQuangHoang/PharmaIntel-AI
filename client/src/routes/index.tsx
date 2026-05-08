@@ -7,6 +7,8 @@ import { ProfilePage } from '@/pages/profile-page';
 import { LoginPage } from '@/pages/login-page';
 import { RegisterPage } from '@/pages/register-page';
 import { CheckoutPage } from '@/pages/checkout-page';
+import { OrderDetailPage } from '@/pages/order-detail-page';
+import { OrdersListPage } from '@/pages/orders-list-page';
 import { AdminDashboardPage } from '@/pages/admin-dashboard-page';
 import { AdminUsersPage } from '@/pages/admin-users-page';
 import { AdminCategoriesPage } from '@/pages/admin-categories-page';
@@ -51,6 +53,8 @@ export function AppRoutes() {
           <Route path="/medicine" element={<MedicineCabinetPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/orders" element={<OrdersListPage />} />
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
         </Route>
 
         {/* Admin area - yeu cau role=admin */}

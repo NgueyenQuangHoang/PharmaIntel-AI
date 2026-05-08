@@ -213,8 +213,31 @@ export function Header() {
                 </div>
               )}
 
+              {/* ── My Orders (chi hien khi da dang nhap) ── */}
+              {isAuthenticated && (
+                <div className="px-2 pt-2">
+                  <button
+                    id="header-my-orders-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate('/orders');
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left
+                      text-sm font-medium text-slate-700 dark:text-slate-200
+                      hover:bg-slate-100 dark:hover:bg-slate-700/60
+                      transition-colors duration-150"
+                    role="menuitem"
+                  >
+                    <span className="material-symbols-outlined text-[20px] text-blue-600 dark:text-blue-400">
+                      receipt_long
+                    </span>
+                    <span>Đơn hàng của tôi</span>
+                  </button>
+                </div>
+              )}
+
               {/* ── Theme Toggle ── */}
-              <div className="px-2 pt-2">
+              <div className={isAuthenticated ? 'px-2 pt-1' : 'px-2 pt-2'}>
                 <button
                   id="header-theme-toggle"
                   onClick={toggleTheme}

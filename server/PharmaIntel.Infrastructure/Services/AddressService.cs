@@ -59,7 +59,9 @@ public class AddressService : IAddressService
                 District = a.District,
                 Ward = a.Ward,
                 StreetAddress = a.StreetAddress,
-                FullAddress = a.StreetAddress + ", " + a.Ward + ", " + a.District + ", " + a.Province,
+                FullAddress = string.IsNullOrWhiteSpace(a.District) 
+                    ? a.StreetAddress + ", " + a.Ward + ", " + a.Province
+                    : a.StreetAddress + ", " + a.Ward + ", " + a.District + ", " + a.Province,
                 IsDefault = a.IsDefault,
                 IsActive = a.IsActive,
                 CreatedAt = a.CreatedAt,
@@ -222,7 +224,9 @@ public class AddressService : IAddressService
         District = a.District,
         Ward = a.Ward,
         StreetAddress = a.StreetAddress,
-        FullAddress = $"{a.StreetAddress}, {a.Ward}, {a.District}, {a.Province}",
+        FullAddress = string.IsNullOrWhiteSpace(a.District) 
+            ? $"{a.StreetAddress}, {a.Ward}, {a.Province}"
+            : $"{a.StreetAddress}, {a.Ward}, {a.District}, {a.Province}",
         IsDefault = a.IsDefault,
         IsActive = a.IsActive,
         CreatedAt = a.CreatedAt,

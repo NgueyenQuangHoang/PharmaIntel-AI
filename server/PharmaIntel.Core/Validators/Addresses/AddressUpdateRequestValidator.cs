@@ -26,7 +26,6 @@ public class AddressUpdateRequestValidator : AbstractValidator<AddressUpdateRequ
             .MaximumLength(100);
 
         RuleFor(x => x.District)
-            .NotEmpty().WithMessage("Quan/Huyen la bat buoc")
             .MaximumLength(100);
 
         RuleFor(x => x.Ward)

@@ -8,7 +8,10 @@ namespace PharmaIntel.Core.DTOs.Orders;
 public class CheckoutRequest
 {
     public long AddressId { get; set; }
-    public long PaymentMethodId { get; set; }
+
+    // Null/0 = backend tu dam bao 1 PaymentMethod COD cho user (MVP).
+    // Khi tich hop gateway that, FE truyen Id cua method da chon.
+    public long? PaymentMethodId { get; set; }
 }
 
 public class UpdateOrderStatusRequest

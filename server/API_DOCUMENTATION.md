@@ -821,13 +821,26 @@ Bien cart hien tai thanh order.
 { "addressId": 1, "paymentMethodId": 1 }
 ```
 
-**Curl**
+`paymentMethodId` la **optional** (long?). Neu omit hoac null/0, backend tu dam bao
+1 PaymentMethod COD active cho user (tao moi neu chua co) va dung lam phuong thuc.
+Tien dung cho FE MVP chi hỗ tro COD.
+
+**Curl (truyen ID payment method)**
 
 ```bash
 curl -X POST http://localhost:5292/api/orders/checkout \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"addressId":1,"paymentMethodId":1}'
+```
+
+**Curl (COD mac dinh)**
+
+```bash
+curl -X POST http://localhost:5292/api/orders/checkout \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"addressId":1}'
 ```
 
 **Response 201**
@@ -860,7 +873,7 @@ curl -X POST http://localhost:5292/api/orders/checkout \
 
 | Status | Khi nao                                                            |
 | ------ | ------------------------------------------------------------------ |
-| 400    | validation (addressId/paymentMethodId <= 0)                        |
+| 400    | validation (addressId <= 0, hoac paymentMethodId truyen sai > 0)    |
 | 401    | thieu token                                                        |
 | 403    | address/payment method khong thuoc user                            |
 | 404    | address/payment method khong ton tai                               |

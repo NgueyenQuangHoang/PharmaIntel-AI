@@ -11,7 +11,10 @@ public class CheckoutRequestValidator : AbstractValidator<CheckoutRequest>
     public CheckoutRequestValidator()
     {
         RuleFor(x => x.AddressId).GreaterThan(0).WithMessage("AddressId la bat buoc");
-        RuleFor(x => x.PaymentMethodId).GreaterThan(0).WithMessage("PaymentMethodId la bat buoc");
+        // PaymentMethodId optional: null = COD mac dinh; nguoc lai phai > 0
+        RuleFor(x => x.PaymentMethodId!.Value)
+            .GreaterThan(0).WithMessage("PaymentMethodId phai > 0")
+            .When(x => x.PaymentMethodId.HasValue);
     }
 }
 

@@ -51,13 +51,22 @@ public class OrderService : IOrderService
         if (!address.IsActive)
             throw new ConflictException("Dia chi khong con hoat dong");
 
-        // 3. Validate payment method
-        var pm = await _db.PaymentMethods.FirstOrDefaultAsync(p => p.Id == req.PaymentMethodId, ct)
-                 ?? throw new NotFoundException("phuong thuc thanh toan", req.PaymentMethodId);
-        if (pm.UserId != userId)
-            throw new ForbiddenException("Phuong thuc thanh toan khong thuoc ve ban");
-        if (!pm.IsActive)
-            throw new ConflictException("Phuong thuc thanh toan khong con hoat dong");
+        // 3. Validate / auto-ensure payment method
+        // MVP: neu FE khong truyen PaymentMethodId -> backend tu dam bao 1 method COD cho user.
+        PaymentMethod pm;
+        if (req.PaymentMethodId is null or 0)
+        {
+            pm = await EnsureCodPaymentMethodAsync(userId, ct);
+        }
+        else
+        {
+            pm = await _db.PaymentMethods.FirstOrDefaultAsync(p => p.Id == req.PaymentMethodId.Value, ct)
+                 ?? throw new NotFoundException("phuong thuc thanh toan", req.PaymentMethodId.Value);
+            if (pm.UserId != userId)
+                throw new ForbiddenException("Phuong thuc thanh toan khong thuoc ve ban");
+            if (!pm.IsActive)
+                throw new ConflictException("Phuong thuc thanh toan khong con hoat dong");
+        }
 
         // 4. Validate stock + tinh subtotal
         decimal subtotal = 0m;
@@ -91,7 +100,9 @@ public class OrderService : IOrderService
             throw new ConflictException("Khong sinh duoc ma don sau 5 lan thu - vui long thu lai");
 
         // 6. Tao Order voi snapshot
-        var fullAddress = $"{address.StreetAddress}, {address.Ward}, {address.District}, {address.Province}";
+        var fullAddress = string.IsNullOrWhiteSpace(address.District)
+            ? $"{address.StreetAddress}, {address.Ward}, {address.Province}"
+            : $"{address.StreetAddress}, {address.Ward}, {address.District}, {address.Province}";
         var paymentStatus = pm.PaymentType == "cod" ? "cod_pending" : "unpaid";
 
         var order = new Order
@@ -362,6 +373,29 @@ public class OrderService : IOrderService
 
         if (!allowed.Contains(next))
             throw new ConflictException($"Khong the chuyen tu '{current}' sang '{next}'");
+    }
+
+    // Dam bao user co 1 PaymentMethod COD active. Lay cai san co hoac tao moi.
+    // Goi trong CheckoutAsync khi FE khong truyen PaymentMethodId (MVP COD-only).
+    private async Task<PaymentMethod> EnsureCodPaymentMethodAsync(long userId, CancellationToken ct)
+    {
+        var existing = await _db.PaymentMethods
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.PaymentType == "cod" && p.IsActive, ct);
+        if (existing is not null) return existing;
+
+        var pm = new PaymentMethod
+        {
+            UserId = userId,
+            PaymentType = "cod",
+            DisplayName = "Thanh toan khi nhan hang",
+            IsDefault = true,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.PaymentMethods.Add(pm);
+        await _db.SaveChangesAsync(ct);
+        return pm;
     }
 
     private async Task RestoreStockAsync(Order order, CancellationToken ct)
