@@ -23,11 +23,14 @@ namespace PharmaIntel.Infrastructure.Services;
 public class OrderService : IOrderService
 {
     private const decimal ShippingFeeFlat = 30000m;
+    private static readonly string[] AllowedPaymentTypes = ["cod", "bank_transfer"];
     private readonly PharmaIntelDbContext _db;
+    private readonly IVietQrService _vietQr;
 
-    public OrderService(PharmaIntelDbContext db)
+    public OrderService(PharmaIntelDbContext db, IVietQrService vietQr)
     {
         _db = db;
+        _vietQr = vietQr;
     }
 
     public async Task<OrderDto> CheckoutAsync(long userId, CheckoutRequest req, CancellationToken ct = default)
@@ -52,11 +55,14 @@ public class OrderService : IOrderService
             throw new ConflictException("Dia chi khong con hoat dong");
 
         // 3. Validate / auto-ensure payment method
-        // MVP: neu FE khong truyen PaymentMethodId -> backend tu dam bao 1 method COD cho user.
+        // MVP: neu FE khong truyen PaymentMethodId -> ensure 1 method theo PaymentType (mac dinh "cod").
         PaymentMethod pm;
         if (req.PaymentMethodId is null or 0)
         {
-            pm = await EnsureCodPaymentMethodAsync(userId, ct);
+            var type = string.IsNullOrWhiteSpace(req.PaymentType) ? "cod" : req.PaymentType.Trim().ToLowerInvariant();
+            if (!AllowedPaymentTypes.Contains(type))
+                throw new ConflictException($"PaymentType '{type}' khong duoc ho tro. Cho phep: {string.Join(", ", AllowedPaymentTypes)}");
+            pm = await EnsurePaymentMethodAsync(userId, type, ct);
         }
         else
         {
@@ -273,7 +279,7 @@ public class OrderService : IOrderService
         if (order.UserId != userId)
             throw new ForbiddenException("Don hang nay khong thuoc ve ban");
 
-        return new OrderDto
+        var dto = new OrderDto
         {
             Id = order.Id,
             OrderCode = order.OrderCode,
@@ -293,6 +299,17 @@ public class OrderService : IOrderService
             UpdatedAt = order.UpdatedAt,
             Items = order.Items
         };
+
+        // Sinh QR khi user can chuyen khoan va don chua duoc thanh toan / chua bi huy.
+        if (order.PaymentTypeSnapshot == "bank_transfer"
+            && order.PaymentStatus is not ("paid" or "refunded")
+            && order.Status != "cancelled")
+        {
+            dto.VietQrUrl = _vietQr.CreateQrUrl(order.Total, order.OrderCode);
+            dto.TransferContent = _vietQr.CreateTransferContent(order.OrderCode);
+        }
+
+        return dto;
     }
 
     public async Task<OrderDto> CancelMyOrderAsync(long userId, long orderId, CancellationToken ct = default)
@@ -375,20 +392,27 @@ public class OrderService : IOrderService
             throw new ConflictException($"Khong the chuyen tu '{current}' sang '{next}'");
     }
 
-    // Dam bao user co 1 PaymentMethod COD active. Lay cai san co hoac tao moi.
-    // Goi trong CheckoutAsync khi FE khong truyen PaymentMethodId (MVP COD-only).
-    private async Task<PaymentMethod> EnsureCodPaymentMethodAsync(long userId, CancellationToken ct)
+    // Dam bao user co 1 PaymentMethod theo `type` (cod/bank_transfer) active.
+    // Lay cai san co hoac tao moi. Goi trong CheckoutAsync khi FE khong truyen PaymentMethodId.
+    private async Task<PaymentMethod> EnsurePaymentMethodAsync(long userId, string type, CancellationToken ct)
     {
         var existing = await _db.PaymentMethods
-            .FirstOrDefaultAsync(p => p.UserId == userId && p.PaymentType == "cod" && p.IsActive, ct);
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.PaymentType == type && p.IsActive, ct);
         if (existing is not null) return existing;
+
+        var displayName = type switch
+        {
+            "cod" => "Thanh toan khi nhan hang",
+            "bank_transfer" => "Chuyen khoan ngan hang",
+            _ => type
+        };
 
         var pm = new PaymentMethod
         {
             UserId = userId,
-            PaymentType = "cod",
-            DisplayName = "Thanh toan khi nhan hang",
-            IsDefault = true,
+            PaymentType = type,
+            DisplayName = displayName,
+            IsDefault = false,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

@@ -50,9 +50,14 @@ export type OrderDto = OrderListItemDto & {
   shippingFullAddress: string | null
   updatedAt: string
   items: OrderItemDto[]
+  vietQrUrl: string | null         // co gia tri khi paymentTypeSnapshot = 'bank_transfer' va don chua paid
+  transferContent: string | null
 }
+
+export type CheckoutPaymentType = 'cod' | 'bank_transfer'
 
 export type CheckoutRequest = {
   addressId: number
-  paymentMethodId?: number | null  // null/omit -> backend tu dam bao COD
+  paymentMethodId?: number | null  // null/omit -> backend ensure-or-create theo paymentType
+  paymentType?: CheckoutPaymentType  // 'cod' (default) | 'bank_transfer'
 }

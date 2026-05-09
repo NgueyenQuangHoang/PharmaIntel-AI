@@ -40,6 +40,11 @@ public class OrderDto : OrderListItemDto
     public string? ShippingFullAddress { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
+
+    // Chi co gia tri khi PaymentTypeSnapshot == "bank_transfer".
+    // BE sinh moi lan GET (khong luu DB) - cau hinh ngan hang co the doi.
+    public string? VietQrUrl { get; set; }
+    public string? TransferContent { get; set; }
 }
 
 // Admin view: them user info de admin biet don nay cua ai

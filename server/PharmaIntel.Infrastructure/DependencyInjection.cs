@@ -27,6 +27,7 @@ public static class DependencyInjection
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
         services.Configure<GeminiSettings>(config.GetSection("Gemini"));
+        services.Configure<BankQrSettings>(config.GetSection("BankQr"));
 
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IMedicationService, MedicationService>();
         services.AddScoped<ICartService, CartService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IVietQrService, VietQrService>();
         services.AddScoped<IAddressService, AddressService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPrescriptionService, PrescriptionService>();

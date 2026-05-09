@@ -175,6 +175,26 @@ export function OrderDetailPage() {
             </div>
           </section>
 
+          {/* QR thanh toan */}
+          {order.vietQrUrl && (
+            <section className="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/10">
+              <h2 className="text-xl font-bold mb-6 font-headline flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">qr_code_2</span>
+                Mã QR thanh toán
+              </h2>
+              <div className="flex justify-center">
+                <div className="bg-white rounded-2xl p-3 shadow-sm border border-outline-variant/20 inline-block">
+                  <img
+                    src={order.vietQrUrl.replace(/-[^-.]+\.png/, '-qr_only.png')}
+                    alt={`VietQR thanh toán đơn ${order.orderCode}`}
+                    className="w-64 h-64 object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Shipping info */}
           <section className="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/10">
             <h2 className="text-xl font-bold mb-4 font-headline flex items-center gap-2">

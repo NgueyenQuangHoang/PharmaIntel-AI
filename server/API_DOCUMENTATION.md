@@ -822,17 +822,15 @@ Bien cart hien tai thanh order.
 ```
 
 `paymentMethodId` la **optional** (long?). Neu omit hoac null/0, backend tu dam bao
-1 PaymentMethod COD active cho user (tao moi neu chua co) va dung lam phuong thuc.
-Tien dung cho FE MVP chi hỗ tro COD.
+1 PaymentMethod active cho user theo `paymentType`. Cac gia tri ho tro hien tai:
 
-**Curl (truyen ID payment method)**
+- `cod` (mac dinh) - Thanh toan khi nhan hang.
+- `bank_transfer` - Chuyen khoan ngan hang. BE sinh URL VietQR (`vietQrUrl`) va
+  noi dung chuyen khoan (`transferContent`) trong response cua `GET /orders/{id}`,
+  FE chi can hien anh + cho user quet.
 
-```bash
-curl -X POST http://localhost:5292/api/orders/checkout \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"addressId":1,"paymentMethodId":1}'
-```
+Cau hinh ngan hang nhan tien o `BankQr` trong appsettings.json (BankCode, AccountNo,
+AccountName, Template).
 
 **Curl (COD mac dinh)**
 
@@ -841,6 +839,24 @@ curl -X POST http://localhost:5292/api/orders/checkout \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"addressId":1}'
+```
+
+**Curl (chuyen khoan VietQR)**
+
+```bash
+curl -X POST http://localhost:5292/api/orders/checkout \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"addressId":1,"paymentType":"bank_transfer"}'
+```
+
+**Curl (truyen ID payment method da luu)**
+
+```bash
+curl -X POST http://localhost:5292/api/orders/checkout \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"addressId":1,"paymentMethodId":1}'
 ```
 
 **Response 201**

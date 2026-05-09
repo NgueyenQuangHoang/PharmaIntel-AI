@@ -9,9 +9,13 @@ public class CheckoutRequest
 {
     public long AddressId { get; set; }
 
-    // Null/0 = backend tu dam bao 1 PaymentMethod COD cho user (MVP).
-    // Khi tich hop gateway that, FE truyen Id cua method da chon.
+    // Null/0 = backend tu dam bao 1 PaymentMethod theo PaymentType cho user.
+    // Khi tich hop gateway, FE truyen Id cua method da luu.
     public long? PaymentMethodId { get; set; }
+
+    // "cod" (mac dinh) | "bank_transfer". Backend ensure-or-create PaymentMethod tuong ung.
+    // Khong dung khi PaymentMethodId co gia tri (ID quyet dinh).
+    public string? PaymentType { get; set; }
 }
 
 public class UpdateOrderStatusRequest

@@ -12,6 +12,7 @@ import { formatVnd } from '@/utils/format'
 import { addressesApi } from '@/features/addresses/addresses-api'
 import type { AddressDto } from '@/features/addresses/types'
 import { ordersApi } from '@/features/orders/orders-api'
+import type { CheckoutPaymentType } from '@/features/orders/types'
 import { fetchCartThunk } from '@/features/cart/cart-slice'
 
 const SHIPPING_FEE = 30000
@@ -174,6 +175,7 @@ export function CheckoutPage() {
   const [wardsLoading, setWardsLoading] = useState(false)
 
   const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express'>('standard')
+  const [paymentType, setPaymentType] = useState<CheckoutPaymentType>('cod')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -327,7 +329,11 @@ export function CheckoutPage() {
 
     try {
       setSubmitting(true)
-      const order = await ordersApi.checkout({ addressId, paymentMethodId: null })
+      const order = await ordersApi.checkout({
+        addressId,
+        paymentMethodId: null,
+        paymentType,
+      })
       // Refresh cart de UI badge ve 0
       await dispatch(fetchCartThunk())
       navigate(`/orders/${order.id}`)
@@ -599,7 +605,7 @@ export function CheckoutPage() {
             </div>
           </section>
 
-          {/* Payment Method Section - chi COD cho MVP */}
+          {/* Payment Method Section - COD hoac chuyen khoan VietQR */}
           <section>
             <div className="flex items-center gap-3 mb-6">
               <span
@@ -612,25 +618,71 @@ export function CheckoutPage() {
                 Phương thức thanh toán
               </h2>
             </div>
-            <div className="p-5 rounded-xl border-2 border-primary bg-surface-container-lowest flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-primary-fixed">payments</span>
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-lg">Thanh toán khi nhận hàng (COD)</div>
-                <div className="text-sm text-on-surface-variant">
-                  Trả tiền mặt cho shipper khi nhận thuốc.
-                </div>
-              </div>
-              <span
-                className="material-symbols-outlined text-primary"
-                style={{ fontVariationSettings: "'FILL' 1" }}
+            <div className="space-y-3">
+              <label
+                className={`p-5 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${
+                  paymentType === 'cod'
+                    ? 'border-primary bg-surface-container-lowest'
+                    : 'border-transparent bg-surface-container-low hover:border-outline-variant'
+                }`}
+                onClick={() => setPaymentType('cod')}
               >
-                check_circle
-              </span>
+                <input type="radio" className="hidden" name="payment" checked={paymentType === 'cod'} readOnly />
+                <div className="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-primary-fixed">payments</span>
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-lg">Thanh toán khi nhận hàng (COD)</div>
+                  <div className="text-sm text-on-surface-variant">
+                    Trả tiền mặt cho shipper khi nhận thuốc.
+                  </div>
+                </div>
+                {paymentType === 'cod' && (
+                  <span
+                    className="material-symbols-outlined text-primary"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    check_circle
+                  </span>
+                )}
+              </label>
+
+              <label
+                className={`p-5 rounded-xl border-2 flex items-center gap-4 cursor-pointer transition-all ${
+                  paymentType === 'bank_transfer'
+                    ? 'border-primary bg-surface-container-lowest'
+                    : 'border-transparent bg-surface-container-low hover:border-outline-variant'
+                }`}
+                onClick={() => setPaymentType('bank_transfer')}
+              >
+                <input
+                  type="radio"
+                  className="hidden"
+                  name="payment"
+                  checked={paymentType === 'bank_transfer'}
+                  readOnly
+                />
+                <div className="w-12 h-12 rounded-lg bg-secondary-container flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-secondary-container">qr_code_2</span>
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-lg">Chuyển khoản ngân hàng (VietQR)</div>
+                  <div className="text-sm text-on-surface-variant">
+                    Quét mã QR sau khi đặt — app ngân hàng tự điền số tiền và nội dung.
+                  </div>
+                </div>
+                {paymentType === 'bank_transfer' && (
+                  <span
+                    className="material-symbols-outlined text-primary"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    check_circle
+                  </span>
+                )}
+              </label>
             </div>
             <p className="mt-3 text-xs text-on-surface-variant">
-              Các phương thức khác (Visa/Mastercard, MoMo, chuyển khoản) sẽ ra mắt sau.
+              Visa/Mastercard, MoMo, ZaloPay sẽ ra mắt sau.
             </p>
           </section>
         </div>
