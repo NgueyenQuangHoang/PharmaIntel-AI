@@ -288,10 +288,12 @@ public class DiagnosticService : IDiagnosticService
         }
 
         // Step 4: create result
+        // UserId lay tu session.UserId (khong phai tu auth) de dam bao
+        // result.user_id LUON khop voi session.user_id - tranh data drift.
         var result = new DiagnosticResult
         {
             SessionId = sessionId,
-            UserId = userId,
+            UserId = session.UserId,
             AiConclusion = engineResult.AiConclusion,
             ConfidenceScore = engineResult.ConfidenceScore,
             RiskLevel = engineResult.RiskLevel,

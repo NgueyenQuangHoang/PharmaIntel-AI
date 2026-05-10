@@ -24,7 +24,31 @@ public class PharmacistChatMessageConfiguration : IEntityTypeConfiguration<Pharm
             .HasForeignKey(e => e.SessionId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.ToTable(t => t.HasCheckConstraint("CK_pharmacist_chat_messages_sender",
-            "[sender_type] IN ('user','pharmacist','system')"));
+        // FK to User (nullable). Restrict de giu lich su chat khi user bi xoa mem.
+        builder.HasOne(e => e.SenderUser)
+            .WithMany()
+            .HasForeignKey(e => e.SenderUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // FK to Pharmacist (nullable). Restrict de giu lich su.
+        builder.HasOne(e => e.SenderPharmacist)
+            .WithMany()
+            .HasForeignKey(e => e.SenderPharmacistId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_pharmacist_chat_messages_sender",
+                "[sender_type] IN ('user','pharmacist','system')");
+
+            // Dam bao sender_type khop voi sender_*_id:
+            //   user      -> sender_user_id NOT NULL,        sender_pharmacist_id NULL
+            //   pharmacist-> sender_user_id NULL,            sender_pharmacist_id NOT NULL
+            //   system    -> ca hai NULL
+            t.HasCheckConstraint("CK_pharmacist_chat_messages_sender_consistency", @"
+                ([sender_type] = 'user'       AND [sender_user_id] IS NOT NULL AND [sender_pharmacist_id] IS NULL)
+             OR ([sender_type] = 'pharmacist' AND [sender_user_id] IS NULL     AND [sender_pharmacist_id] IS NOT NULL)
+             OR ([sender_type] = 'system'     AND [sender_user_id] IS NULL     AND [sender_pharmacist_id] IS NULL)");
+        });
     }
 }

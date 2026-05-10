@@ -31,6 +31,12 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasForeignKey(e => e.MedicationId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // FK toi PrescriptionItem (nullable) - SetNull de OrderItem giu duoc khi don thuoc bi xoa.
+        builder.HasOne(e => e.PrescriptionItem)
+            .WithMany()
+            .HasForeignKey(e => e.PrescriptionItemId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_order_items_quantity", "[quantity] > 0");

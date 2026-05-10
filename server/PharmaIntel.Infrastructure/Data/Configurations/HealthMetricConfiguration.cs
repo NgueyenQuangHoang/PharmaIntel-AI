@@ -22,10 +22,11 @@ public class HealthMetricConfiguration : IEntityTypeConfiguration<HealthMetric>
         builder.Property(e => e.Notes).HasColumnType("nvarchar(max)");
         builder.Property(e => e.RecordedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
 
+        // Restrict: chi so suc khoe la ho so y te - giu kha ca khi user bi xoa.
         builder.HasOne(e => e.User)
             .WithMany(u => u.HealthMetrics)
             .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(e => new { e.UserId, e.MetricType, e.RecordedAt })
             .HasDatabaseName("IX_health_metrics_user_type_recorded_at");

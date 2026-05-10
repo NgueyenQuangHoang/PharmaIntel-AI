@@ -31,10 +31,12 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(e => e.OrderCode).IsUnique().HasDatabaseName("UQ_orders_order_code");
         builder.HasIndex(e => new { e.UserId, e.CreatedAt }).HasDatabaseName("IX_orders_user_created_at");
 
+        // Restrict: don hang phai duoc giu de doi soat doanh thu/hoan tien
+        // ngay ca khi user bi xoa. Dung soft delete (set is_active=false) o tang code.
         builder.HasOne(e => e.User)
             .WithMany(u => u.Orders)
             .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(e => e.Address)
             .WithMany(a => a.Orders)

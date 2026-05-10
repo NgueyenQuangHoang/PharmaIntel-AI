@@ -1,9 +1,13 @@
 // Service: AdminUserService
-// Chuc nang: Quan ly user cho admin (list, doi role, lock/unlock, xoa cung).
+// Chuc nang: Quan ly user cho admin (list, doi role, lock/unlock, xoa mem).
 // Quy tac:
 //   - Khong cho admin doi role / lock / xoa chinh ban than -> ConflictException
 //   - Role chi nhan "user" hoac "admin" (lowercase) -> ValidationException
-//   - DeleteAsync = hard delete: xoa vinh vien user va cascade cac ban ghi lien quan
+//   - DeleteAsync = soft delete + anonymize PII (KHONG hard delete):
+//       * IsActive = false -> AuthService.LoginAsync chan login
+//       * Email/FullName/AvatarUrl/AuthProviderId duoc anonymize
+//       * PasswordHash xoa de chan login local
+//       * Giu lai user record + cac FK orders/payments/prescriptions/audit
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.DTOs.Admin;
@@ -146,9 +150,20 @@ public class AdminUserService : IAdminUserService
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == targetUserId, ct)
                    ?? throw new NotFoundException("nguoi dung", targetUserId);
 
-        // Hard delete: xoa vinh vien user khoi database.
-        // Cac ban ghi lien quan (orders, cart, notifications...) se tu dong cascade delete.
-        _db.Users.Remove(user);
+        // Soft delete + anonymize PII (GDPR-friendly).
+        // Giu lai user record de orders/payments/prescriptions/audit van con FK hop le.
+        // Khong the undo - email goc se khong phuc hoi duoc.
+        if (!user.IsActive && user.Email.StartsWith("deleted-"))
+            throw new ConflictException("User da bi xoa truoc do");
+
+        user.IsActive = false;
+        user.Email = $"deleted-{user.Id}@anonymized.local";
+        user.FullName = "[Deleted User]";
+        user.PasswordHash = null;        // chan login local
+        user.AvatarUrl = null;
+        user.AuthProviderId = null;      // chan re-login OAuth
+        user.UpdatedAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(ct);
     }
 }

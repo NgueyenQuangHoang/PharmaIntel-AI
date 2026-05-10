@@ -20,4 +20,5 @@ public class OrderItem
 
     public Order Order { get; set; } = null!;
     public Medication? Medication { get; set; }
+    public PrescriptionItem? PrescriptionItem { get; set; }
 }

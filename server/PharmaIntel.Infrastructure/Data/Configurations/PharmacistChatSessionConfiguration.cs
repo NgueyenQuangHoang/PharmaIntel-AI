@@ -19,10 +19,11 @@ public class PharmacistChatSessionConfiguration : IEntityTypeConfiguration<Pharm
         builder.Property(e => e.StartedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         builder.Property(e => e.ClosedAt).HasColumnType("datetime2(0)");
 
+        // Restrict: chat voi duoc si lien quan thuoc ke don - co the la bang chung tranh chap y te.
         builder.HasOne(e => e.User)
             .WithMany(u => u.ChatSessions)
             .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(e => e.Pharmacist)
             .WithMany(p => p.ChatSessions)

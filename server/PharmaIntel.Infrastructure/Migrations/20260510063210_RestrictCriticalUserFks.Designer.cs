@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaIntel.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PharmaIntel.Infrastructure.Data;
 namespace PharmaIntel.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaIntelDbContext))]
-    partial class PharmaIntelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260510063210_RestrictCriticalUserFks")]
+    partial class RestrictCriticalUserFks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1134,8 +1137,6 @@ namespace PharmaIntel.Infrastructure.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.HasIndex("PrescriptionItemId");
-
                     b.ToTable("order_items", null, t =>
                         {
                             t.HasCheckConstraint("CK_order_items_price", "[unit_price] >= 0");
@@ -1398,17 +1399,11 @@ namespace PharmaIntel.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SenderPharmacistId");
-
-                    b.HasIndex("SenderUserId");
-
                     b.HasIndex("SessionId");
 
                     b.ToTable("pharmacist_chat_messages", null, t =>
                         {
                             t.HasCheckConstraint("CK_pharmacist_chat_messages_sender", "[sender_type] IN ('user','pharmacist','system')");
-
-                            t.HasCheckConstraint("CK_pharmacist_chat_messages_sender_consistency", "\r\n                ([sender_type] = 'user'       AND [sender_user_id] IS NOT NULL AND [sender_pharmacist_id] IS NULL)\r\n             OR ([sender_type] = 'pharmacist' AND [sender_user_id] IS NULL     AND [sender_pharmacist_id] IS NOT NULL)\r\n             OR ([sender_type] = 'system'     AND [sender_user_id] IS NULL     AND [sender_pharmacist_id] IS NULL)");
                         });
                 });
 
@@ -2125,16 +2120,9 @@ namespace PharmaIntel.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PharmaIntel.Core.Entities.PrescriptionItem", "PrescriptionItem")
-                        .WithMany()
-                        .HasForeignKey("PrescriptionItemId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Medication");
 
                     b.Navigation("Order");
-
-                    b.Navigation("PrescriptionItem");
                 });
 
             modelBuilder.Entity("PharmaIntel.Core.Entities.PaymentMethod", b =>
@@ -2168,25 +2156,11 @@ namespace PharmaIntel.Infrastructure.Migrations
 
             modelBuilder.Entity("PharmaIntel.Core.Entities.PharmacistChatMessage", b =>
                 {
-                    b.HasOne("PharmaIntel.Core.Entities.Pharmacist", "SenderPharmacist")
-                        .WithMany()
-                        .HasForeignKey("SenderPharmacistId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("PharmaIntel.Core.Entities.User", "SenderUser")
-                        .WithMany()
-                        .HasForeignKey("SenderUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PharmaIntel.Core.Entities.PharmacistChatSession", "Session")
                         .WithMany("Messages")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("SenderPharmacist");
-
-                    b.Navigation("SenderUser");
 
                     b.Navigation("Session");
                 });

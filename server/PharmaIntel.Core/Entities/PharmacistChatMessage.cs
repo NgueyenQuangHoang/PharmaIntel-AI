@@ -17,4 +17,8 @@ public class PharmacistChatMessage
     public DateTime SentAt { get; set; } = DateTime.UtcNow;
 
     public PharmacistChatSession Session { get; set; } = null!;
+
+    // Nav: chi co gia tri khi sender_type tuong ung. Check constraint dam bao tinh nhat quan.
+    public User? SenderUser { get; set; }
+    public Pharmacist? SenderPharmacist { get; set; }
 }

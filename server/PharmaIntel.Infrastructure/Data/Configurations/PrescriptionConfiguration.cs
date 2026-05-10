@@ -23,10 +23,11 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
         builder.Property(e => e.CreatedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         builder.Property(e => e.UpdatedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
 
+        // Restrict: don thuoc la ban ghi y te phap ly - phai giu kha ca khi user bi xoa.
         builder.HasOne(e => e.User)
             .WithMany(u => u.Prescriptions)
             .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(e => e.Doctor)
             .WithMany(d => d.Prescriptions)

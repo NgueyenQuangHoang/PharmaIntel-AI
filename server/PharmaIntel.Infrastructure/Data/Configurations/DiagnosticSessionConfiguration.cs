@@ -19,10 +19,11 @@ public class DiagnosticSessionConfiguration : IEntityTypeConfiguration<Diagnosti
         builder.Property(e => e.CreatedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         builder.Property(e => e.CompletedAt).HasColumnType("datetime2(0)");
 
+        // Restrict: lich su chan doan AI thuoc ho so y te - giu kha ca khi user bi xoa.
         builder.HasOne(e => e.User)
             .WithMany(u => u.DiagnosticSessions)
             .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.ToTable(t => t.HasCheckConstraint("CK_diagnostic_sessions_status",
             "[status] IN ('in_progress','analyzing','completed','cancelled','failed')"));

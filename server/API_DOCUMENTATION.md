@@ -2716,10 +2716,20 @@ Loi:
 ```
 Loi: 409 neu `id == currentUserId`.
 
-**DELETE `/api/admin/users/{id}`** — Soft delete:
-- Set `IsActive = false`
-- Anonymize `email` thanh `deleted_{id}_{guid}@deleted.local` (tranh trung UQ)
-- Loi: 409 neu `id == currentUserId`
+**DELETE `/api/admin/users/{id}`** — Soft delete + anonymize PII:
+- Set `IsActive = false` (AuthService.LoginAsync chan login)
+- Anonymize:
+  - `email` -> `deleted-{id}@anonymized.local`
+  - `fullName` -> `[Deleted User]`
+  - `passwordHash`, `avatarUrl`, `authProviderId` -> null (chan ca login local va OAuth)
+- **KHONG hard delete** - giu lai user record de:
+  - `orders`, `payment_methods`, `payment_transactions` van con (doanh thu/doi soat)
+  - `prescriptions`, `diagnostic_sessions`, `health_metrics` (ho so y te phap ly)
+  - `user_consents` (bang chung dong y dieu khoan)
+  - `pharmacist_chat_sessions` (tranh chap y te)
+- Cac ban ghi co the bi mat (cascade): `cart_items`, `notifications`, `medication_reminders`, `addresses` (nhung order da snapshot recipient/phone/full_address), `user_settings`, `ai_insights`.
+- DB cung dat FK `Restrict` cho 7 bang quan trong tren - ngan ca lenh `DELETE FROM users` truc tiep tu SQL.
+- Loi: 409 neu `id == currentUserId` hoac user da bi xoa truoc do.
 
 ### 17.2 Thong ke — `/api/admin/stats`
 
