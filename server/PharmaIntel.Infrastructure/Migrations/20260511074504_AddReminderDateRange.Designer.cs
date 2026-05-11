@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaIntel.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PharmaIntel.Infrastructure.Data;
 namespace PharmaIntel.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaIntelDbContext))]
-    partial class PharmaIntelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260511074504_AddReminderDateRange")]
+    partial class AddReminderDateRange
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -859,12 +862,9 @@ namespace PharmaIntel.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("PrescriptionItemId");
 
-                    b.HasIndex("PrescriptionItemId", "ReminderTime")
-                        .IsUnique()
-                        .HasDatabaseName("UX_medication_reminders_item_time")
-                        .HasFilter("[prescription_item_id] IS NOT NULL");
+                    b.HasIndex("UserId");
 
                     b.ToTable("medication_reminders", null, t =>
                         {

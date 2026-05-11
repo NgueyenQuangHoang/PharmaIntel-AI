@@ -228,6 +228,11 @@ public class PrescriptionService : IPrescriptionService
             throw new ForbiddenException("Don thuoc khong thuoc ve ban");
         if (rx.Status == "cancelled")
             throw new ConflictException("Don thuoc da bi huy - khong the upload file");
+        // Chan upload them khi don da verified: trang chi tiet duoc si khoa form khi
+        // prescription = verified -> document pending moi se ket vinh vien, khong ai
+        // verify/reject duoc. User muon doi thuoc -> tao prescription moi.
+        if (rx.VerificationStatus == "verified")
+            throw new ConflictException("Don thuoc da duoc xac minh - khong the upload them file. Vui long tao don moi.");
 
         // 3. Resolve paths. Dung IHostEnvironment (Core hosting abstraction) thay vi
         // IWebHostEnvironment de Infrastructure khong phai ref ASP.NET.
@@ -268,7 +273,7 @@ public class PrescriptionService : IPrescriptionService
             // Cap nhat prescription.VerificationStatus theo rule:
             //  - not_required / rejected -> pending (user upload lai)
             //  - pending -> giu pending
-            //  - verified -> giu verified (document them la phu)
+            //  - verified -> da bi chan o tren, khong vao day duoc
             if (rx.VerificationStatus is "not_required" or "rejected")
             {
                 rx.VerificationStatus = "pending";

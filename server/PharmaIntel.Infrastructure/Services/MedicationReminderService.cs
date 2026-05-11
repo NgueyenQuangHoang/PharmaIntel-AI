@@ -41,6 +41,8 @@ public class MedicationReminderService : IMedicationReminderService
     {
         q.Normalize();
 
+        await AutoCompleteExpiredAsync(userId, ct);
+
         var query = _db.MedicationReminders.AsNoTracking().Where(r => r.UserId == userId);
 
         if (!string.IsNullOrWhiteSpace(q.Status))
@@ -67,6 +69,8 @@ public class MedicationReminderService : IMedicationReminderService
                 MedicationName = r.MedicationName,
                 FrequencyType = r.FrequencyType,
                 ReminderTime = r.ReminderTime,
+                StartDate = r.StartDate,
+                EndDate = r.EndDate,
                 Status = r.Status,
                 LogCount = r.Logs.Count,
                 CreatedAt = r.CreatedAt,
@@ -85,6 +89,8 @@ public class MedicationReminderService : IMedicationReminderService
 
     public async Task<MedicationReminderDto> GetByIdAsync(long userId, long id, CancellationToken ct = default)
     {
+        await AutoCompleteExpiredAsync(userId, ct);
+
         var r = await _db.MedicationReminders.AsNoTracking()
             .Include(x => x.Logs)
             .FirstOrDefaultAsync(x => x.Id == id, ct)
@@ -98,6 +104,10 @@ public class MedicationReminderService : IMedicationReminderService
     {
         var (prescriptionItemId, medicationName) = await ResolvePrescriptionItemAsync(userId, req.PrescriptionItemId, req.MedicationName, ct);
 
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = req.StartDate ?? today;
+        ValidateDateRange(startDate, req.EndDate);
+
         var entity = new MedicationReminder
         {
             UserId = userId,
@@ -105,6 +115,8 @@ public class MedicationReminderService : IMedicationReminderService
             MedicationName = medicationName,
             FrequencyType = req.FrequencyType,
             ReminderTime = req.ReminderTime,
+            StartDate = startDate,
+            EndDate = req.EndDate,
             Status = "active",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -127,10 +139,15 @@ public class MedicationReminderService : IMedicationReminderService
 
         var (prescriptionItemId, medicationName) = await ResolvePrescriptionItemAsync(userId, req.PrescriptionItemId, req.MedicationName, ct);
 
+        var newStart = req.StartDate ?? entity.StartDate;
+        ValidateDateRange(newStart, req.EndDate);
+
         entity.PrescriptionItemId = prescriptionItemId;
         entity.MedicationName = medicationName;
         entity.FrequencyType = req.FrequencyType;
         entity.ReminderTime = req.ReminderTime;
+        entity.StartDate = newStart;
+        entity.EndDate = req.EndDate;
         entity.Status = req.Status;
         entity.UpdatedAt = DateTime.UtcNow;
 
@@ -244,6 +261,29 @@ public class MedicationReminderService : IMedicationReminderService
         return (null, trimmed);
     }
 
+    // Auto-complete reminder qua han: EndDate < today va Status = 'active'.
+    // Goi truoc moi List/Get de user nhin thay state moi nhat. Cost re vi co WHERE
+    // index-friendly + chi update khi co row du dieu kien.
+    private async Task AutoCompleteExpiredAsync(long userId, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var nowUtc = DateTime.UtcNow;
+        await _db.MedicationReminders
+            .Where(r => r.UserId == userId
+                     && r.Status == "active"
+                     && r.EndDate != null
+                     && r.EndDate < today)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.Status, "completed")
+                .SetProperty(r => r.UpdatedAt, nowUtc), ct);
+    }
+
+    private static void ValidateDateRange(DateOnly startDate, DateOnly? endDate)
+    {
+        if (endDate.HasValue && endDate.Value < startDate)
+            throw new ValidationException("endDate", "EndDate phai >= StartDate");
+    }
+
     private static void ValidateTransition(string current, string next)
     {
         if (current == next) return;
@@ -266,6 +306,8 @@ public class MedicationReminderService : IMedicationReminderService
         MedicationName = r.MedicationName,
         FrequencyType = r.FrequencyType,
         ReminderTime = r.ReminderTime,
+        StartDate = r.StartDate,
+        EndDate = r.EndDate,
         Status = r.Status,
         LogCount = r.Logs?.Count ?? 0,
         CreatedAt = r.CreatedAt,

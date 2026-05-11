@@ -4,8 +4,11 @@
 // Quan he: N:1 voi Prescription | N:1 voi Medication (nullable).
 // Quy tac:
 //   - Chi duoc si active moi duoc thao tac (lookup theo pharmacists.user_id).
-//   - Cho phep sua khi prescription.VerificationStatus IN ('pending','rejected','not_required').
-//     Khi prescription da 'verified', items chot - tranh sua phia sau lung dieu duong.
+//   - Chi cho sua khi don co PrescriptionDocument dang `pending` -> dam bao duoc si
+//     chi nhap thuoc khi co file don bac si dang cho xu ly. Cac state khac (rong,
+//     verified, rejected) deu khoa o backend, dong bo voi UI lock o frontend.
+//   - Reject roi muon sua tiep: user upload file moi -> prescription quay ve pending
+//     -> duoc si xu ly lai tu dau (giu notes reject cu nhu lich su).
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.DTOs.Prescriptions;
@@ -18,8 +21,6 @@ namespace PharmaIntel.Infrastructure.Services;
 
 public class PharmacistPrescriptionItemService : IPharmacistPrescriptionItemService
 {
-    private static readonly string[] EditableVerificationStatuses = ["not_required", "pending", "rejected"];
-
     private readonly PharmaIntelDbContext _db;
 
     public PharmacistPrescriptionItemService(PharmaIntelDbContext db)
@@ -76,6 +77,7 @@ public class PharmacistPrescriptionItemService : IPharmacistPrescriptionItemServ
     {
         await EnsureActivePharmacistAsync(pharmacistUserId, ct);
         var rx = await GetEditablePrescriptionAsync(prescriptionId, ct);
+        await EnsureHasPendingDocumentAsync(prescriptionId, ct);
 
         var (medicationId, medicationName) = await ResolveMedicationAsync(req.MedicationId, req.MedicationName, ct);
 
@@ -107,6 +109,7 @@ public class PharmacistPrescriptionItemService : IPharmacistPrescriptionItemServ
             ?? throw new NotFoundException("muc don thuoc", itemId);
 
         EnsurePrescriptionEditable(item.Prescription);
+        await EnsureHasPendingDocumentAsync(item.PrescriptionId, ct);
 
         var (medicationId, medicationName) = await ResolveMedicationAsync(req.MedicationId, req.MedicationName, ct);
 
@@ -131,6 +134,7 @@ public class PharmacistPrescriptionItemService : IPharmacistPrescriptionItemServ
             ?? throw new NotFoundException("muc don thuoc", itemId);
 
         EnsurePrescriptionEditable(item.Prescription);
+        await EnsureHasPendingDocumentAsync(item.PrescriptionId, ct);
 
         _db.PrescriptionItems.Remove(item);
         item.Prescription.UpdatedAt = DateTime.UtcNow;
@@ -161,11 +165,24 @@ public class PharmacistPrescriptionItemService : IPharmacistPrescriptionItemServ
 
     private static void EnsurePrescriptionEditable(Prescription rx)
     {
-        if (!EditableVerificationStatuses.Contains(rx.VerificationStatus))
+        // Da chot (verified) hoac da co quyet dinh tu choi (rejected) -> khoa hoan toan.
+        // Trang thai 'not_required' (don rong, chua upload file) cung bi chan o
+        // EnsureHasPendingDocumentAsync ben duoi - chi 'pending' la pass.
+        if (rx.VerificationStatus is "verified" or "rejected")
             throw new ConflictException(
                 $"Khong the chinh sua items khi don thuoc dang o trang thai verify '{rx.VerificationStatus}'");
         if (rx.Status == "cancelled")
             throw new ConflictException("Don thuoc da bi huy - khong the chinh sua items");
+    }
+
+    // Invariant: chi cho nhap thuoc khi co document dang 'pending'. Tranh duoc si
+    // tu y "ke don" vao don rong (not_required) hoac sua sau khi da reject.
+    private async Task EnsureHasPendingDocumentAsync(long prescriptionId, CancellationToken ct)
+    {
+        var hasPending = await _db.PrescriptionDocuments
+            .AnyAsync(d => d.PrescriptionId == prescriptionId && d.VerificationStatus == "pending", ct);
+        if (!hasPending)
+            throw new ConflictException("Chi duoc nhap thuoc khi co file don thuoc dang cho xac minh");
     }
 
     private async Task<(long? MedicationId, string MedicationName)> ResolveMedicationAsync(

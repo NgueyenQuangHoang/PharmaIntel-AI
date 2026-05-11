@@ -14,6 +14,11 @@ public class MedicationReminder
     public string MedicationName { get; set; } = string.Empty;
     public string FrequencyType { get; set; } = "daily"; // once, daily, weekly, custom
     public TimeOnly ReminderTime { get; set; }
+    // Pham vi hieu luc: StartDate = ngay bat dau (NOT NULL). EndDate null = mo (thuoc man tinh
+    // / chua biet ngay dung). Khi list reminders, service tu set Status='completed' neu
+    // EndDate < today - tranh hien reminder qua han ma user khong phai thao tac.
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public string Status { get; set; } = "active"; // active, paused, completed, cancelled
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

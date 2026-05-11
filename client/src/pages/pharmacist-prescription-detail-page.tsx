@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { pharmacistApi } from '@/features/pharmacist/pharmacist-api'
 import type {
@@ -8,6 +8,7 @@ import type {
   PrescriptionItemCreateRequest,
 } from '@/features/prescriptions/types'
 import { MedicationCombobox } from '@/features/prescriptions/components/MedicationCombobox'
+import { parseDurationDays, previewReminderSlots } from '@/features/prescriptions/utils/reminderSlots'
 import { resolveFileUrl } from '@/utils/file-url'
 
 function extractApiError(err: unknown, fallback: string) {
@@ -34,8 +35,12 @@ const emptyForm: PrescriptionItemCreateRequest = {
 
 export function PharmacistPrescriptionDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const prescriptionId = Number(id)
+  // documentId optional: khi duoc si bam vao card cu the o dashboard, query nay
+  // pin dung file ho click. Neu thieu (vd vao tu lich su) thi fallback file pending dau tien.
+  const targetDocumentId = Number(searchParams.get('documentId')) || null
 
   const [prescription, setPrescription] = useState<Prescription | null>(null)
   const [loading, setLoading] = useState(true)
@@ -116,9 +121,21 @@ export function PharmacistPrescriptionDetailPage() {
     }
   }
 
+  // Resolve dung file dang xu ly:
+  //  1. Neu URL co ?documentId= va file do tim thay + dang pending -> dung file do.
+  //  2. Khong thi fallback file pending dau tien (giu hanh vi cu khi mo tu cho khong co context).
+  function resolveTargetPendingDoc() {
+    if (!prescription?.documents) return undefined
+    if (targetDocumentId) {
+      const exact = prescription.documents.find((d) => d.id === targetDocumentId)
+      if (exact && exact.verificationStatus === 'pending') return exact
+    }
+    return prescription.documents.find((d) => d.verificationStatus === 'pending')
+  }
+
   async function verify() {
     if (!prescription || prescription.items.length === 0) return
-    const pending = prescription.documents?.find((d) => d.verificationStatus === 'pending')
+    const pending = resolveTargetPendingDoc()
     if (!pending) {
       setError('Không tìm thấy file đang chờ xác minh')
       return
@@ -137,7 +154,7 @@ export function PharmacistPrescriptionDetailPage() {
 
   async function reject() {
     if (!prescription) return
-    const pending = prescription.documents?.find((d) => d.verificationStatus === 'pending')
+    const pending = resolveTargetPendingDoc()
     if (!pending) return
     if (rejectNotes.trim().length < 5) {
       setError('Vui lòng nhập lý do từ chối tối thiểu 5 ký tự')
@@ -159,12 +176,13 @@ export function PharmacistPrescriptionDetailPage() {
   if (!prescription)
     return <div className="p-8 text-center text-error mt-10">{error || 'Không tìm thấy đơn thuốc'}</div>
 
-  const pendingDoc = prescription.documents?.find((d) => d.verificationStatus === 'pending')
+  const pendingDoc = resolveTargetPendingDoc()
   const canVerify = !!pendingDoc && prescription.items.length > 0
-  // Don da chot khi prescription.VerificationStatus IN (verified, rejected).
-  // Khoa form sua items + cac action verify/reject de duoc si chi xem lai (audit/history).
-  const isLocked =
-    prescription.verificationStatus === 'verified' || prescription.verificationStatus === 'rejected'
+  // Dong bo voi backend (PharmacistPrescriptionItemService): chi cho sua khi co
+  // document dang 'pending'. Cac state khac (verified, rejected, hoac don rong
+  // chua upload file) deu chi xem.
+  const hasAnyPendingDoc = !!prescription.documents?.some((d) => d.verificationStatus === 'pending')
+  const isLocked = !hasAnyPendingDoc
 
   return (
     <div className="pt-8 pb-24 px-6 md:px-8 max-w-7xl mx-auto animate-in fade-in zoom-in-95 duration-500">
@@ -201,8 +219,17 @@ export function PharmacistPrescriptionDetailPage() {
 
       {isLocked && (
         <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
-          <span className="font-semibold">Đơn đã chốt</span> ({prescription.verificationStatus}).
-          Chế độ chỉ xem — không thể sửa items hoặc xác minh lại.
+          {prescription.verificationStatus === 'verified' || prescription.verificationStatus === 'rejected' ? (
+            <>
+              <span className="font-semibold">Đơn đã chốt</span> ({prescription.verificationStatus}).
+              Chế độ chỉ xem. Nếu user upload file mới, đơn sẽ trở lại trạng thái chờ xác minh.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">Chưa có file đơn chờ xác minh</span> — không thể nhập items.
+              Hãy đợi user upload file đơn bác sĩ rồi mở lại.
+            </>
+          )}
         </div>
       )}
 
@@ -217,11 +244,22 @@ export function PharmacistPrescriptionDetailPage() {
               {prescription.documents.map((doc) => {
                 const url = resolveFileUrl(doc.fileUrl)
                 const isPdf = doc.fileUrl.toLowerCase().endsWith('.pdf')
+                const isTarget = pendingDoc?.id === doc.id
                 return (
-                  <div key={doc.id} className="rounded-xl border border-outline-variant/20 p-3 bg-surface-container-low">
-                    <div className="flex items-center justify-between mb-2">
+                  <div
+                    key={doc.id}
+                    className={`rounded-xl border p-3 bg-surface-container-low ${
+                      isTarget ? 'border-primary ring-2 ring-primary/30' : 'border-outline-variant/20'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2 gap-2">
                       <span className="text-xs font-semibold">
                         File #{doc.id} — {doc.verificationStatus}
+                        {isTarget && (
+                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-primary text-on-primary">
+                            Đang xử lý
+                          </span>
+                        )}
                       </span>
                       <a
                         href={url}
@@ -353,9 +391,45 @@ export function PharmacistPrescriptionDetailPage() {
                 </button>
               )}
             </div>
-            <p className="text-[11px] text-on-surface-variant">
-              Mẹo: ghi "2 lần/ngày", "3 lần/ngày"… hệ thống sẽ tự tạo lịch nhắc tương ứng cho user.
-            </p>
+            {(() => {
+              const preview = previewReminderSlots(form.frequency)
+              const days = parseDurationDays(form.duration)
+              const today = new Date()
+              const endDateLabel = days
+                ? new Date(today.getTime() + (days - 1) * 86400000).toLocaleDateString('vi-VN')
+                : null
+              return (
+                <div
+                  className={`text-[11px] rounded-lg px-3 py-2 ${
+                    preview.matched
+                      ? 'bg-primary-container/40 text-on-primary-container'
+                      : 'bg-amber-50 text-amber-900 border border-amber-200'
+                  }`}
+                >
+                  {preview.matched ? (
+                    <>
+                      <span className="font-semibold">Hệ thống sẽ tạo lịch nhắc:</span>{' '}
+                      {preview.slots.join(', ')}{' '}
+                      <span className="text-on-surface-variant">(mỗi ngày)</span>
+                      <div className="mt-1">
+                        <span className="font-semibold">Lịch chạy:</span>{' '}
+                        {today.toLocaleDateString('vi-VN')}{' → '}
+                        {endDateLabel ?? (
+                          <span className="italic">đến khi dược sĩ/user dừng thủ công</span>
+                        )}
+                        {endDateLabel && <span> ({days} ngày)</span>}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold">Không khớp pattern "N lần/ngày"</span> — sẽ tạo
+                      1 lịch mặc định {preview.slots[0]} mỗi ngày. Hãy ghi rõ "1 lần/ngày", "2 lần/ngày"…
+                      nếu muốn nhiều slot.
+                    </>
+                  )}
+                </div>
+              )
+            })()}
           </div>
           )}
         </section>

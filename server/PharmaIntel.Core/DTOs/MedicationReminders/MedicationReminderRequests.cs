@@ -12,6 +12,8 @@ public class MedicationReminderCreateRequest
     public string? MedicationName { get; set; }       // bat buoc neu khong co PrescriptionItemId
     public string FrequencyType { get; set; } = "daily"; // once, daily, weekly, custom
     public TimeOnly ReminderTime { get; set; }
+    public DateOnly? StartDate { get; set; }          // null -> service set today
+    public DateOnly? EndDate { get; set; }            // null = mo (chua biet ngay dung)
 }
 
 public class MedicationReminderUpdateRequest
@@ -20,6 +22,8 @@ public class MedicationReminderUpdateRequest
     public string? MedicationName { get; set; }
     public string FrequencyType { get; set; } = "daily";
     public TimeOnly ReminderTime { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public string Status { get; set; } = "active";    // active, paused, completed, cancelled
 }
 

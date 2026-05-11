@@ -25,6 +25,12 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
         @"(\d+)\s*l(?:ầ|a)n",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    // Parse so ngay uong tu duration text. Vd: "5 ngay", "10 ngày" -> 5/10.
+    // Khong khop -> null = EndDate mo (uong tiep cho den khi dung thu cong).
+    private static readonly Regex DurationDaysRegex = new(
+        @"(\d+)\s*ng(?:à|a)y",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly PharmaIntelDbContext _db;
 
     public PharmacistPrescriptionVerificationService(PharmaIntelDbContext db)
@@ -202,20 +208,39 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
         // Tao MedicationReminder cho tung PrescriptionItem khi prescription chuyen sang verified
         // lan dau. Mac dinh slot uong theo so lan/ngay parse tu item.Frequency.
         if (prescriptionTransitioningToVerified)
-            CreateRemindersForPrescription(prescription);
+            await CreateRemindersForPrescriptionAsync(prescription, ct);
 
         await _db.SaveChangesAsync(ct);
 
         return ToDto(document);
     }
 
-    private void CreateRemindersForPrescription(Prescription prescription)
+    private async Task CreateRemindersForPrescriptionAsync(Prescription prescription, CancellationToken ct)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Skip-if-exists: query (item_id, reminder_time) da co. Bo sung cho unique index
+        // o DB - tranh nem UniqueViolation khi verify retry/race. Index van la guarantee
+        // cuoi cung neu race chen vao giua check va save.
+        var itemIds = prescription.Items.Select(i => i.Id).ToList();
+        var existingKeys = await _db.MedicationReminders
+            .Where(r => r.PrescriptionItemId != null && itemIds.Contains(r.PrescriptionItemId!.Value))
+            .Select(r => new { ItemId = r.PrescriptionItemId!.Value, r.ReminderTime })
+            .ToListAsync(ct);
+        var existingSet = existingKeys.Select(k => (k.ItemId, k.ReminderTime)).ToHashSet();
+
         foreach (var item in prescription.Items)
         {
             var slots = ParseDailySlots(item.Frequency);
+            var endDate = ParseDurationDays(item.Duration) is int n
+                ? today.AddDays(n - 1)
+                : (DateOnly?)null;
+
             foreach (var time in slots)
             {
+                if (existingSet.Contains((item.Id, time)))
+                    continue;
+
                 _db.MedicationReminders.Add(new MedicationReminder
                 {
                     UserId = prescription.UserId,
@@ -223,12 +248,25 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
                     MedicationName = item.MedicationName,
                     FrequencyType = "daily",
                     ReminderTime = time,
+                    StartDate = today,
+                    EndDate = endDate,
                     Status = "active",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
             }
         }
+    }
+
+    private static int? ParseDurationDays(string? duration)
+    {
+        if (!string.IsNullOrWhiteSpace(duration))
+        {
+            var match = DurationDaysRegex.Match(duration);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var n) && n >= 1)
+                return n;
+        }
+        return null;
     }
 
     private static IReadOnlyList<TimeOnly> ParseDailySlots(string? frequency)

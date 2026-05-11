@@ -1663,7 +1663,10 @@ curl -X DELETE http://localhost:5292/api/prescriptions/1 -H "Authorization: Bear
 4. Duoc si doc file, **nhap `PrescriptionItems`** qua `POST/PUT/DELETE /api/pharmacist/prescription-items` cho den khi day du.
 5. Duoc si bam `PUT .../verify`:
    - Backend yeu cau **prescription phai co >= 1 item** (409 neu rong).
-   - Sau khi verify, backend tu dong sinh `MedicationReminder` cho tung item, parse so lan/ngay tu `frequency` (vi du "3 lan/ngay" -> 3 reminder voi gio 08:00/13:00/20:00).
+   - Sau khi verify, backend tu dong sinh `MedicationReminder` cho tung item:
+     - Parse so lan/ngay tu `frequency` -> chon slot gio (vi du "3 lan/ngay" -> 08:00/13:00/20:00).
+     - Parse so ngay tu `duration` -> dat `endDate = today + N - 1`. Khong khop -> `endDate = null` (mo).
+   - Reminder qua han tu chuyen sang `completed` o lan fetch ke tiep (xem muc 11).
 6. User checkout co the dung don verified de mua thuoc kê đơn (`OrderService.CheckoutAsync` kiem tra).
 
 ### 10.X.1 `GET /api/pharmacist/prescriptions/{id}`
@@ -1745,8 +1748,21 @@ User co the:
 | --------------- | -------- | ---------------------------------------------------------- |
 | `frequencyType` | string   | `once`, `daily`, `weekly`, `custom`                        |
 | `reminderTime`  | TimeOnly | `HH:mm:ss` (gio nhac trong ngay, vi du `"08:00:00"`)       |
+| `startDate`     | DateOnly | `YYYY-MM-DD` (ngay bat dau, NOT NULL)                       |
+| `endDate`       | DateOnly? | `YYYY-MM-DD` hoac `null` (null = uong cho den khi dung thu cong) |
 | `status`        | string   | `active`, `paused`, `completed`, `cancelled`               |
 | Log `status`    | string   | `scheduled` (system) / `taken` / `missed` / `skipped`      |
+
+### Auto-complete khi qua han
+
+Moi lan goi `GET /api/medication-reminders` hoac `GET /.../{id}`, backend tu chay
+`UPDATE medication_reminders SET status='completed' WHERE end_date < today AND status='active'`
+cho user dang dang nhap. Khong can scheduler / cron - reminder qua han se tu chuyen sang
+`completed` ngay lan fetch ke tiep.
+
+Khi duoc si **verify** don thuoc, neu `prescriptionItem.duration` co dang `"N ngay"` (vi du
+"5 ngay"), backend dat `endDate = today + N - 1`. Khong khop -> `endDate = null` (mo,
+keo dai cho den khi user/duoc si dung thu cong).
 
 ---
 
@@ -1774,6 +1790,8 @@ curl "http://localhost:5292/api/medication-reminders?status=active" \
       "medicationName": "Paracetamol 500mg",
       "frequencyType": "daily",
       "reminderTime": "08:00:00",
+      "startDate": "2026-05-11",
+      "endDate": "2026-05-15",
       "status": "active",
       "logCount": 5,
       "createdAt": "...", "updatedAt": "..."
@@ -1813,9 +1831,14 @@ Tao lich nhac moi (status mac dinh `active`).
 {
   "prescriptionItemId": 10,
   "frequencyType": "daily",
-  "reminderTime": "08:00:00"
+  "reminderTime": "08:00:00",
+  "startDate": "2026-05-11",
+  "endDate": "2026-05-15"
 }
 ```
+
+`startDate` optional (mac dinh = today). `endDate` optional, null = mo. Validation:
+`endDate >= startDate`.
 
 **Hoac standalone** (free-text):
 

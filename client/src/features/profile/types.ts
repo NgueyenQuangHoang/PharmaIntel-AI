@@ -34,6 +34,8 @@ export type MedicationReminderListItem = {
   medicationName: string
   frequencyType: string
   reminderTime: string // TimeOnly translates to string (e.g. "08:00:00")
+  startDate: string    // DateOnly -> "YYYY-MM-DD"
+  endDate: string | null
   status: string
   logCount: number
   createdAt: string

@@ -42,7 +42,7 @@ export function MedicationReminders() {
           <div className="text-center text-on-primary-fixed py-4">Chưa có lịch nhắc nhở nào</div>
         )}
 
-        {data?.items.map((reminder) => {
+        {data?.items.filter((r) => r.status === 'active').map((reminder) => {
           const upcoming = isUpcoming(reminder.reminderTime);
           const passed = isPassed(reminder.reminderTime);
 
@@ -53,7 +53,15 @@ export function MedicationReminders() {
             >
               <div>
                 <p className={`font-bold ${passed ? 'text-on-surface' : 'text-primary'}`}>{reminder.medicationName}</p>
-                <p className="text-xs text-outline">{reminder.frequencyType}</p>
+                <p className="text-xs text-outline">
+                  {reminder.frequencyType}
+                  {reminder.endDate && (
+                    <>
+                      {' • đến hết '}
+                      {new Date(reminder.endDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                    </>
+                  )}
+                </p>
               </div>
               <div className="text-right">
                 <p className={`text-sm font-bold ${passed ? 'text-on-surface-variant line-through' : ''}`}>

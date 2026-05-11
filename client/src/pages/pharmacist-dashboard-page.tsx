@@ -160,7 +160,9 @@ export function PharmacistDashboardPage() {
 
               <button
                 type="button"
-                onClick={() => navigate(`/pharmacist/prescriptions/${doc.prescriptionId}`)}
+                onClick={() =>
+                  navigate(`/pharmacist/prescriptions/${doc.prescriptionId}?documentId=${doc.id}`)
+                }
                 className="w-full py-3 rounded-xl bg-primary text-on-primary font-bold hover:bg-primary/90 transition-colors shadow-sm"
               >
                 {isPending ? 'Mở đơn để xử lý' : 'Xem chi tiết'}

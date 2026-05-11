@@ -11,6 +11,8 @@ public class MedicationReminderListItemDto
     public string MedicationName { get; set; } = string.Empty;
     public string FrequencyType { get; set; } = "daily";
     public TimeOnly ReminderTime { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public string Status { get; set; } = "active";
     public int LogCount { get; set; }
     public DateTime CreatedAt { get; set; }

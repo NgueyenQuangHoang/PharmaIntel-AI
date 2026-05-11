@@ -32,6 +32,10 @@ public class MedicationReminderCreateRequestValidator : AbstractValidator<Medica
             .NotEmpty()
             .Must(v => AllowedFrequency.Contains(v))
             .WithMessage("FrequencyType phai la mot trong: once, daily, weekly, custom");
+
+        RuleFor(x => x.EndDate)
+            .Must((req, end) => !end.HasValue || !req.StartDate.HasValue || end.Value >= req.StartDate.Value)
+            .WithMessage("EndDate phai >= StartDate");
     }
 }
 
@@ -61,6 +65,10 @@ public class MedicationReminderUpdateRequestValidator : AbstractValidator<Medica
             .NotEmpty()
             .Must(v => AllowedStatuses.Contains(v))
             .WithMessage("Status phai la mot trong: active, paused, completed, cancelled");
+
+        RuleFor(x => x.EndDate)
+            .Must((req, end) => !end.HasValue || !req.StartDate.HasValue || end.Value >= req.StartDate.Value)
+            .WithMessage("EndDate phai >= StartDate");
     }
 }
 
