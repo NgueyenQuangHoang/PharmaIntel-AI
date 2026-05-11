@@ -1,15 +1,15 @@
 // =============================================================================
 // Controller: PrescriptionsController
-// Chuc nang: CRUD don thuoc + items cua user dang dang nhap (user-scoped).
+// Chuc nang: CRUD don thuoc + upload file (user-scoped). User KHONG nhap items -
+// chi duoc si duoc phep (xem PharmacistPrescriptionItemsController).
 // Endpoints (tat ca yeu cau JWT):
-//   GET    /api/prescriptions/my                         list (paged)
-//   GET    /api/prescriptions/{id}                       chi tiet kem items
-//   POST   /api/prescriptions                            tao moi (status draft)
-//   PUT    /api/prescriptions/{id}                       cap nhat header + status
-//   DELETE /api/prescriptions/{id}                       xoa (chi khi chua co order)
-//   POST   /api/prescriptions/{id}/items                 them muc thuoc (chi khi draft)
-//   PUT    /api/prescriptions/{id}/items/{itemId}        sua muc thuoc (chi khi draft)
-//   DELETE /api/prescriptions/{id}/items/{itemId}        xoa muc thuoc (chi khi draft)
+//   GET    /api/prescriptions/my                  list (paged)
+//   GET    /api/prescriptions/{id}                chi tiet kem items (read-only voi user)
+//   POST   /api/prescriptions                     tao moi (status draft)
+//   PUT    /api/prescriptions/{id}                cap nhat header + status
+//   DELETE /api/prescriptions/{id}                xoa (chi khi chua co order)
+//   POST   /api/prescriptions/{id}/documents      upload anh/PDF don bac si
+//   GET    /api/prescriptions/{id}/documents      list file da upload
 // =============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -58,26 +58,6 @@ public class PrescriptionsController : ControllerBase
     public async Task<IActionResult> Delete(long id, CancellationToken ct)
     {
         await _service.DeleteAsync(User.GetUserId(), id, ct);
-        return NoContent();
-    }
-
-    [HttpPost("{id:long}/items")]
-    public async Task<ActionResult<PrescriptionItemDto>> AddItem(
-        long id, [FromBody] PrescriptionItemCreateRequest request, CancellationToken ct)
-    {
-        var item = await _service.AddItemAsync(User.GetUserId(), id, request, ct);
-        return CreatedAtAction(nameof(Get), new { id = item.PrescriptionId }, item);
-    }
-
-    [HttpPut("{id:long}/items/{itemId:long}")]
-    public async Task<ActionResult<PrescriptionItemDto>> UpdateItem(
-        long id, long itemId, [FromBody] PrescriptionItemUpdateRequest request, CancellationToken ct)
-        => Ok(await _service.UpdateItemAsync(User.GetUserId(), id, itemId, request, ct));
-
-    [HttpDelete("{id:long}/items/{itemId:long}")]
-    public async Task<IActionResult> RemoveItem(long id, long itemId, CancellationToken ct)
-    {
-        await _service.RemoveItemAsync(User.GetUserId(), id, itemId, ct);
         return NoContent();
     }
 

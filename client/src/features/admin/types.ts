@@ -29,7 +29,7 @@ export type AdminUserListQuery = {
 
 export type AdminUsersPaged = Paged<AdminUser>
 
-export type UpdateUserRoleRequest = { role: AppRole }
+export type UpdateUserRoleRequest = { role: AppRole; licenseNumber?: string | null }
 export type UpdateUserStatusRequest = { isActive: boolean }
 
 // === Stats ===

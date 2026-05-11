@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ResultHeader } from '@/features/diagnostic/components/ResultHeader';
 import { SuggestedMedications } from '@/features/diagnostic/components/SuggestedMedications';
 import { AISidebarInsight } from '@/features/diagnostic/components/AISidebarInsight';
@@ -45,6 +45,20 @@ export function DiagnosticResultPage() {
   return (
     <div className="pt-8 pb-16 px-4 md:px-8 max-w-7xl mx-auto animate-in fade-in zoom-in-95 duration-500">
       <ResultHeader />
+
+      <div className="mb-6 p-4 rounded-2xl border border-amber-300/40 bg-amber-50/70 text-amber-900 flex items-start gap-3">
+        <span className="material-symbols-outlined text-amber-600 mt-0.5">info</span>
+        <div className="text-sm leading-relaxed">
+          <strong className="font-bold">Báo cáo AI chỉ mang tính tham khảo</strong> — không thay thế đơn thuốc của bác sĩ.
+          Với <em>mỹ phẩm, thực phẩm chức năng hoặc dụng cụ y tế cơ bản</em>, bạn có thể mua trực tiếp.
+          Với thuốc có nhãn <span className="font-semibold">"Cần đơn thuốc"</span>, hãy{' '}
+          <Link to="/prescriptions" className="underline font-semibold">
+            upload đơn bác sĩ
+          </Link>{' '}
+          để dược sĩ xác minh trước khi checkout.
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-8">
           <SuggestedMedications />

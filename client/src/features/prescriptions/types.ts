@@ -35,7 +35,10 @@ export type PrescriptionItem = {
 }
 
 export type Prescription = PrescriptionListItem & {
+  userId?: number
+  userFullName?: string | null
   items: PrescriptionItem[]
+  documents?: PrescriptionDocument[]
 }
 
 export type PrescriptionDocument = {

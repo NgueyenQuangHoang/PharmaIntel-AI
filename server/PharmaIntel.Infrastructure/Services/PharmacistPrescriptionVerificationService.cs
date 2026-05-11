@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.DTOs.Common;
 using PharmaIntel.Core.DTOs.Pharmacists;
@@ -10,6 +11,20 @@ namespace PharmaIntel.Infrastructure.Services;
 
 public class PharmacistPrescriptionVerificationService : IPharmacistPrescriptionVerificationService
 {
+    // Default times for daily reminders, indexed by doses-per-day. Index 0 unused.
+    private static readonly TimeOnly[][] DefaultDailySlots =
+    {
+        Array.Empty<TimeOnly>(),
+        new[] { new TimeOnly(8, 0) },
+        new[] { new TimeOnly(8, 0), new TimeOnly(20, 0) },
+        new[] { new TimeOnly(8, 0), new TimeOnly(13, 0), new TimeOnly(20, 0) },
+        new[] { new TimeOnly(7, 0), new TimeOnly(12, 0), new TimeOnly(17, 0), new TimeOnly(22, 0) }
+    };
+
+    private static readonly Regex DosesPerDayRegex = new(
+        @"(\d+)\s*l(?:ầ|a)n",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly PharmaIntelDbContext _db;
 
     public PharmacistPrescriptionVerificationService(PharmaIntelDbContext db)
@@ -38,6 +53,56 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
 
         var items = await query
             .OrderBy(d => d.CreatedAt)
+            .Skip((q.Page - 1) * q.PageSize)
+            .Take(q.PageSize)
+            .Select(d => new PrescriptionDocumentVerificationDto
+            {
+                Id = d.Id,
+                PrescriptionId = d.PrescriptionId,
+                UserId = d.Prescription.UserId,
+                UserFullName = d.Prescription.User.FullName,
+                PrescriptionTitle = d.Prescription.Title,
+                FileUrl = d.FileUrl,
+                VerificationStatus = d.VerificationStatus,
+                VerifiedByPharmacistId = d.VerifiedByPharmacistId,
+                Notes = d.Notes,
+                CreatedAt = d.CreatedAt,
+                UpdatedAt = d.UpdatedAt
+            })
+            .ToListAsync(ct);
+
+        return new PagedResult<PrescriptionDocumentVerificationDto>
+        {
+            Items = items,
+            Page = q.Page,
+            PageSize = q.PageSize,
+            TotalCount = total
+        };
+    }
+
+    public async Task<PagedResult<PrescriptionDocumentVerificationDto>> ListHistoryAsync(
+        long pharmacistUserId,
+        PrescriptionDocumentHistoryQuery q,
+        CancellationToken ct = default)
+    {
+        q.Normalize();
+        await GetActivePharmacistIdAsync(pharmacistUserId, ct);
+
+        var query = _db.PrescriptionDocuments
+            .AsNoTracking()
+            .Include(d => d.Prescription)
+                .ThenInclude(p => p.User)
+            .Where(d => d.VerificationStatus == "verified" || d.VerificationStatus == "rejected");
+
+        if (q.Status is "verified" or "rejected")
+            query = query.Where(d => d.VerificationStatus == q.Status);
+
+        var total = await query.CountAsync(ct);
+
+        var items = await query
+            // Sap xep theo thoi diem ra quyet dinh moi nhat (UpdatedAt) - du cho duoc si khac
+            // co the verify nhieu don cu, cai moi nhat luon o tren.
+            .OrderByDescending(d => d.UpdatedAt)
             .Skip((q.Page - 1) * q.PageSize)
             .Take(q.PageSize)
             .Select(d => new PrescriptionDocumentVerificationDto
@@ -100,6 +165,8 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
         var document = await _db.PrescriptionDocuments
             .Include(d => d.Prescription)
                 .ThenInclude(p => p.User)
+            .Include(d => d.Prescription)
+                .ThenInclude(p => p.Items)
             .FirstOrDefaultAsync(d => d.Id == documentId, ct)
             ?? throw new NotFoundException("file don thuoc", documentId);
 
@@ -108,6 +175,11 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
 
         if (document.Prescription.Status == "cancelled")
             throw new ConflictException("Don thuoc da bi huy - khong the verify/reject");
+
+        // Verify bat buoc co items (do duoc si nhap truoc) - khong cho verify don rong
+        // vi lich nhac uong se khong tao duoc + co the gay nham lan cho user/checkout.
+        if (decision == "verified" && document.Prescription.Items.Count == 0)
+            throw new ConflictException("Phai nhap danh sach thuoc trong don truoc khi xac minh");
 
         document.VerificationStatus = decision;
         document.VerifiedByPharmacistId = pharmacistId;
@@ -118,15 +190,59 @@ public class PharmacistPrescriptionVerificationService : IPharmacistPrescription
 
         // Chi update prescription.VerificationStatus khi chua duoc quyet (pending/not_required).
         // Tranh trach nhiem document moi reject ghi de prescription da verified truoc do.
+        var prescriptionTransitioningToVerified =
+            decision == "verified" && prescription.VerificationStatus is "pending" or "not_required";
+
         if (prescription.VerificationStatus is "pending" or "not_required")
         {
             prescription.VerificationStatus = decision;
             prescription.UpdatedAt = DateTime.UtcNow;
         }
 
+        // Tao MedicationReminder cho tung PrescriptionItem khi prescription chuyen sang verified
+        // lan dau. Mac dinh slot uong theo so lan/ngay parse tu item.Frequency.
+        if (prescriptionTransitioningToVerified)
+            CreateRemindersForPrescription(prescription);
+
         await _db.SaveChangesAsync(ct);
 
         return ToDto(document);
+    }
+
+    private void CreateRemindersForPrescription(Prescription prescription)
+    {
+        foreach (var item in prescription.Items)
+        {
+            var slots = ParseDailySlots(item.Frequency);
+            foreach (var time in slots)
+            {
+                _db.MedicationReminders.Add(new MedicationReminder
+                {
+                    UserId = prescription.UserId,
+                    PrescriptionItemId = item.Id,
+                    MedicationName = item.MedicationName,
+                    FrequencyType = "daily",
+                    ReminderTime = time,
+                    Status = "active",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+        }
+    }
+
+    private static IReadOnlyList<TimeOnly> ParseDailySlots(string? frequency)
+    {
+        if (!string.IsNullOrWhiteSpace(frequency))
+        {
+            var match = DosesPerDayRegex.Match(frequency);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var doses) && doses >= 1)
+            {
+                var clamped = Math.Min(doses, DefaultDailySlots.Length - 1);
+                return DefaultDailySlots[clamped];
+            }
+        }
+        return DefaultDailySlots[1];
     }
 
     private async Task<long> GetActivePharmacistIdAsync(long pharmacistUserId, CancellationToken ct)

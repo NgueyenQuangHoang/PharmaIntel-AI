@@ -1,21 +1,21 @@
 // =============================================================================
 // Service: PrescriptionService
-// Chuc nang: Quan ly don thuoc + items (user-scoped).
-// Quan he: N:1 voi User | 1:N voi PrescriptionItem | 1:N voi Order (don hang co the
-//          tham chieu prescription neu thuoc keo don).
+// Chuc nang: Quan ly don thuoc + upload file (user-scoped).
+// Quan he: N:1 voi User | 1:N voi PrescriptionItem (do pharmacist nhap) | 1:N voi Order.
 // Quy tac nghiep vu:
 //   - Prescription moi tao = status "draft" mac dinh.
-//   - Items chi them/sua/xoa khi prescription dang "draft" (khoa khi active/completed/...).
+//   - User KHONG nhap PrescriptionItems (chi duoc si moi co quyen, xem
+//     PharmacistPrescriptionItemService). User chi tao don rong + upload anh/PDF
+//     don bac si.
 //   - Status transition cho phep:
 //       draft     -> active | cancelled
 //       active    -> completed | cancelled
 //       completed -> (terminal)
 //       cancelled -> (terminal)
 //     Khong cho user tu set "expired" (do system tu chuyen theo PrescribedDate sau nay).
-//   - Khi chuyen draft -> active, prescription phai co it nhat 1 item.
+//   - Khi chuyen draft -> active, prescription phai co it nhat 1 item (do duoc si nhap).
 //   - Delete: chi xoa duoc khi chua co Order tham chieu (ConflictException neu da co).
 //   - DoctorId neu co phai ton tai + IsActive; auto snapshot Doctor.FullName.
-//   - MedicationId neu co phai ton tai + IsActive; auto snapshot Medication.Name.
 //   - VerificationStatus do pharmacist quan ly o module khac, khong expose o API nay.
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
@@ -191,65 +191,6 @@ public class PrescriptionService : IPrescriptionService
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task<PrescriptionItemDto> AddItemAsync(long userId, long prescriptionId, PrescriptionItemCreateRequest req, CancellationToken ct = default)
-    {
-        var rx = await GetDraftForItemMutationAsync(userId, prescriptionId, ct);
-
-        var (medicationId, medicationName) = await ResolveMedicationAsync(req.MedicationId, req.MedicationName, ct);
-
-        var item = new PrescriptionItem
-        {
-            PrescriptionId = rx.Id,
-            MedicationId = medicationId,
-            MedicationName = medicationName,
-            Dosage = req.Dosage?.Trim(),
-            Frequency = req.Frequency?.Trim(),
-            Duration = req.Duration?.Trim()
-        };
-
-        _db.PrescriptionItems.Add(item);
-        rx.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-
-        return ToItemDto(item);
-    }
-
-    public async Task<PrescriptionItemDto> UpdateItemAsync(long userId, long prescriptionId, long itemId, PrescriptionItemUpdateRequest req, CancellationToken ct = default)
-    {
-        var rx = await GetDraftForItemMutationAsync(userId, prescriptionId, ct);
-
-        var item = await _db.PrescriptionItems.FirstOrDefaultAsync(i => i.Id == itemId, ct)
-                   ?? throw new NotFoundException("muc don thuoc", itemId);
-        if (item.PrescriptionId != rx.Id)
-            throw new NotFoundException("muc don thuoc", itemId);
-
-        var (medicationId, medicationName) = await ResolveMedicationAsync(req.MedicationId, req.MedicationName, ct);
-
-        item.MedicationId = medicationId;
-        item.MedicationName = medicationName;
-        item.Dosage = req.Dosage?.Trim();
-        item.Frequency = req.Frequency?.Trim();
-        item.Duration = req.Duration?.Trim();
-        rx.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(ct);
-        return ToItemDto(item);
-    }
-
-    public async Task RemoveItemAsync(long userId, long prescriptionId, long itemId, CancellationToken ct = default)
-    {
-        var rx = await GetDraftForItemMutationAsync(userId, prescriptionId, ct);
-
-        var item = await _db.PrescriptionItems.FirstOrDefaultAsync(i => i.Id == itemId, ct)
-                   ?? throw new NotFoundException("muc don thuoc", itemId);
-        if (item.PrescriptionId != rx.Id)
-            throw new NotFoundException("muc don thuoc", itemId);
-
-        _db.PrescriptionItems.Remove(item);
-        rx.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-    }
-
     // -------------------------------------------------------------------------
     // Document upload / list
     // -------------------------------------------------------------------------
@@ -377,39 +318,6 @@ public class PrescriptionService : IPrescriptionService
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
-
-    private async Task<Prescription> GetDraftForItemMutationAsync(long userId, long prescriptionId, CancellationToken ct)
-    {
-        var rx = await _db.Prescriptions.FirstOrDefaultAsync(p => p.Id == prescriptionId, ct)
-                 ?? throw new NotFoundException("don thuoc", prescriptionId);
-        if (rx.UserId != userId)
-            throw new ForbiddenException("Don thuoc khong thuoc ve ban");
-        if (rx.Status != "draft")
-            throw new ConflictException($"Khong the chinh sua items khi don thuoc dang o trang thai '{rx.Status}'");
-        return rx;
-    }
-
-    private async Task<(long? MedicationId, string MedicationName)> ResolveMedicationAsync(
-        long? medicationId, string? medicationName, CancellationToken ct)
-    {
-        if (medicationId.HasValue)
-        {
-            var med = await _db.Medications.AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Id == medicationId.Value, ct)
-                ?? throw new NotFoundException("thuoc", medicationId.Value);
-            if (!med.IsActive)
-                throw new ConflictException($"Thuoc '{med.Name}' khong con kinh doanh");
-            // Snapshot ten thuoc luc them - khong phu thuoc rename ve sau
-            var name = string.IsNullOrWhiteSpace(medicationName) ? med.Name : medicationName.Trim();
-            return (med.Id, name);
-        }
-
-        // Free-text
-        var trimmed = medicationName?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(trimmed))
-            throw new ValidationException("medicationName", "MedicationName la bat buoc khi khong chon thuoc tu danh muc");
-        return (null, trimmed);
-    }
 
     private static void ValidateTransition(string current, string next, int itemCount)
     {

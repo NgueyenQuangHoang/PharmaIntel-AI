@@ -27,6 +27,14 @@ public class PharmacistPrescriptionDocumentsController : ControllerBase
         return Ok(await _service.ListPendingAsync(User.GetUserId(), query, ct));
     }
 
+    [HttpGet("history")]
+    public async Task<ActionResult<PagedResult<PrescriptionDocumentVerificationDto>>> ListHistory(
+        [FromQuery] PrescriptionDocumentHistoryQuery query,
+        CancellationToken ct)
+    {
+        return Ok(await _service.ListHistoryAsync(User.GetUserId(), query, ct));
+    }
+
     [HttpPut("{id:long}/verify")]
     public async Task<ActionResult<PrescriptionDocumentVerificationDto>> Verify(
         long id,

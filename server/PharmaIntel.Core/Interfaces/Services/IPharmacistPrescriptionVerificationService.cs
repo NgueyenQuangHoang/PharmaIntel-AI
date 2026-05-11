@@ -10,6 +10,13 @@ public interface IPharmacistPrescriptionVerificationService
         PendingPrescriptionDocumentQuery query,
         CancellationToken ct = default);
 
+    // Lich su don da co quyet dinh (verified hoac rejected) - duoc si tra cuu khi co
+    // khieu nai hoac can audit lai. Filter optional theo status; default tra ca hai.
+    Task<PagedResult<PrescriptionDocumentVerificationDto>> ListHistoryAsync(
+        long pharmacistUserId,
+        PrescriptionDocumentHistoryQuery query,
+        CancellationToken ct = default);
+
     Task<PrescriptionDocumentVerificationDto> VerifyAsync(
         long pharmacistUserId,
         long documentId,

@@ -17,6 +17,7 @@ import { AdminOrdersPage } from '@/pages/admin-orders-page';
 import { PrescriptionsPage } from '@/pages/prescriptions-page';
 import { PrescriptionDetailPage } from '@/pages/prescription-detail-page';
 import { PharmacistDashboardPage } from '@/pages/pharmacist-dashboard-page';
+import { PharmacistPrescriptionDetailPage } from '@/pages/pharmacist-prescription-detail-page';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -84,6 +85,7 @@ export function AppRoutes() {
         {/* Pharmacist area - yeu cau role=pharmacist */}
         <Route element={<PharmacistLayoutWrapper />}>
           <Route path="/pharmacist" element={<PharmacistDashboardPage />} />
+          <Route path="/pharmacist/prescriptions/:id" element={<PharmacistPrescriptionDetailPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

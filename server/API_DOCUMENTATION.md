@@ -1633,111 +1633,75 @@ curl -X DELETE http://localhost:5292/api/prescriptions/1 -H "Authorization: Bear
 
 ---
 
-### 10.6 `POST /api/prescriptions/{id}/items`
+### 10.6 ~~`POST /api/prescriptions/{id}/items`~~ (DA XOA)
 
-Them muc thuoc vao don. **Chi khi prescription dang `draft`.**
+> **Da chuyen quyen sang duoc si.** User KHONG con duoc nhap PrescriptionItems.
+> Dung `POST /api/pharmacist/prescriptions/{id}/items` (role=pharmacist).
 
-Co 2 cach:
+### 10.7 ~~`PUT /api/prescriptions/{id}/items/{itemId}`~~ (DA XOA)
 
-**(a) Chon thuoc tu danh muc** (auto snapshot ten):
+> Dung `PUT /api/pharmacist/prescription-items/{itemId}` (role=pharmacist).
 
-```json
-{
-  "medicationId": 5,
-  "dosage": "500mg",
-  "frequency": "3 lan/ngay",
-  "duration": "5 ngay"
-}
-```
+### 10.8 ~~`DELETE /api/prescriptions/{id}/items/{itemId}`~~ (DA XOA)
 
-**(b) Free-text** (tu nhap khi thuoc khong co trong DB):
-
-```json
-{
-  "medicationName": "Vitamin C tu nhan",
-  "dosage": "1 vien",
-  "frequency": "moi sang",
-  "duration": "10 ngay"
-}
-```
-
-**Response 201**: `PrescriptionItemDto`.
-
-```json
-{
-  "id": 10, "prescriptionId": 1,
-  "medicationId": 5,
-  "medicationName": "Paracetamol 500mg",
-  "dosage": "500mg", "frequency": "3 lan/ngay", "duration": "5 ngay"
-}
-```
-
-| Status | Khi nao                                                                           |
-| ------ | --------------------------------------------------------------------------------- |
-| 201    | OK                                                                                |
-| 400    | validation (medicationName rong khi khong co medicationId, do dai vuot gioi han)  |
-| 401    | thieu token                                                                       |
-| 403    | don khong cua user                                                                |
-| 404    | don khong ton tai / medicationId khong ton tai                                    |
-| 409    | don khong o trang thai `draft`, hoac thuoc da `isActive=false`                    |
+> Dung `DELETE /api/pharmacist/prescription-items/{itemId}` (role=pharmacist).
 
 ---
 
-### 10.7 `PUT /api/prescriptions/{id}/items/{itemId}`
+## 10.X Pharmacist Workflow (Duoc si xac minh + nhap items)
 
-Cap nhat muc thuoc. **Chi khi prescription dang `draft`.** Full update.
+> **Tat ca endpoint trong muc nay yeu cau JWT + role=`pharmacist`.**
+> Tai khoan role=`pharmacist` phai co row tuong ung trong bang `pharmacists`
+> (admin promote user -> AdminUserService auto tao). Neu khong, tra 403
+> "Tai khoan nay chua gan ho so duoc si".
 
-**Request body** (same as POST):
+### Nghiep vu
 
-```json
-{
-  "medicationId": 5,
-  "dosage": "1000mg",
-  "frequency": "2 lan/ngay",
-  "duration": "7 ngay"
-}
-```
+1. User tao `Prescription` rong + upload anh/PDF don bac si (`/api/prescriptions/{id}/documents`).
+2. Duoc si vao `/api/pharmacist/prescription-documents/pending` -> lay danh sach don cho.
+3. Duoc si mo `GET /api/pharmacist/prescriptions/{id}` -> xem file + item list hien co.
+4. Duoc si doc file, **nhap `PrescriptionItems`** qua `POST/PUT/DELETE /api/pharmacist/prescription-items` cho den khi day du.
+5. Duoc si bam `PUT .../verify`:
+   - Backend yeu cau **prescription phai co >= 1 item** (409 neu rong).
+   - Sau khi verify, backend tu dong sinh `MedicationReminder` cho tung item, parse so lan/ngay tu `frequency` (vi du "3 lan/ngay" -> 3 reminder voi gio 08:00/13:00/20:00).
+6. User checkout co the dung don verified de mua thuoc kê đơn (`OrderService.CheckoutAsync` kiem tra).
 
-**Curl**
+### 10.X.1 `GET /api/pharmacist/prescriptions/{id}`
 
-```bash
-curl -X PUT http://localhost:5292/api/prescriptions/1/items/10 \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"medicationId":5,"dosage":"1000mg","frequency":"2 lan/ngay","duration":"7 ngay"}'
-```
+Chi tiet don (kem `items` + `documents`). Duoc si nao cung doc duoc moi don (de phan cong linh hoat).
 
-**Response 200**: `PrescriptionItemDto`.
+**Response 200**: `PrescriptionDto` voi them `userId`, `userFullName`, `documents[]`.
 
-| Status | Khi nao                                                                |
-| ------ | ---------------------------------------------------------------------- |
-| 200    | OK                                                                     |
-| 400    | validation                                                             |
-| 401    | thieu token                                                            |
-| 403    | don khong cua user                                                     |
-| 404    | don/item khong ton tai, hoac item khong thuoc don nay                  |
-| 409    | don khong o trang thai `draft`, hoac thuoc da `isActive=false`         |
+### 10.X.2 `POST /api/pharmacist/prescriptions/{id}/items`
 
----
+Them muc thuoc vao don. Body giong endpoint user cu (xem 10.6).
 
-### 10.8 `DELETE /api/prescriptions/{id}/items/{itemId}`
+Cho phep khi `prescription.VerificationStatus IN ('not_required','pending','rejected')` va `Status != 'cancelled'`. Bi khoa khi don da `verified` (chot).
 
-Xoa muc thuoc. **Chi khi prescription dang `draft`.**
+### 10.X.3 `PUT /api/pharmacist/prescription-items/{itemId}` &amp; `DELETE /api/pharmacist/prescription-items/{itemId}`
 
-```bash
-curl -X DELETE http://localhost:5292/api/prescriptions/1/items/10 \
-  -H "Authorization: Bearer $TOKEN"
-```
+Cap nhat / xoa muc thuoc. Cung rang buoc trang thai nhu 10.X.2.
 
-**Response 204**.
+### 10.X.4 `GET /api/pharmacist/prescription-documents/pending`
 
-| Status | Khi nao                                              |
-| ------ | ---------------------------------------------------- |
-| 204    | OK                                                   |
-| 401    | thieu token                                          |
-| 403    | don khong cua user                                   |
-| 404    | don/item khong ton tai, hoac item khong thuoc don nay|
-| 409    | don khong o trang thai `draft`                       |
+List file dang `pending`, paged (`?page=&pageSize=`).
+
+### 10.X.4b `GET /api/pharmacist/prescription-documents/history`
+
+Lich su don da co quyet dinh (`verified` + `rejected`), sap xep theo thoi gian quyet dinh moi nhat. Query params:
+
+- `page`, `pageSize` (default 1/20, max 100)
+- `status` (optional): `verified` | `rejected`. Bo trong = ca hai.
+
+Dung de duoc si tra cuu lai khi co khieu nai / audit. Trang detail mo tu lich su o **che do chi xem** (form sua items va action verify/reject bi an).
+
+### 10.X.5 `PUT /api/pharmacist/prescription-documents/{id}/verify`
+
+Verify file -> nang `prescription.VerificationStatus = verified` + sinh MedicationReminders cho user. Body `{ "notes": "..." }` (optional). **Tra 409 neu prescription chua co item nao.**
+
+### 10.X.6 `PUT /api/pharmacist/prescription-documents/{id}/reject`
+
+Tu choi file. `notes` la **bat buoc** (>= 5 ky tu).
 
 ---
 

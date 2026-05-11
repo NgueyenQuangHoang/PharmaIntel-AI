@@ -33,5 +33,8 @@ public class PrescriptionListItemDto
 
 public class PrescriptionDto : PrescriptionListItemDto
 {
+    public long UserId { get; set; }
+    public string? UserFullName { get; set; }
     public List<PrescriptionItemDto> Items { get; set; } = [];
+    public List<PrescriptionDocumentDto> Documents { get; set; } = [];
 }

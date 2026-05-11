@@ -34,3 +34,19 @@ public class PrescriptionDocumentDecisionRequest
 {
     public string? Notes { get; set; }
 }
+
+public class PrescriptionDocumentHistoryQuery
+{
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+    // Filter optional: "verified" | "rejected". Null/empty = ca hai.
+    public string? Status { get; set; }
+
+    public void Normalize()
+    {
+        if (Page <= 0) Page = 1;
+        if (PageSize <= 0) PageSize = 20;
+        if (PageSize > 100) PageSize = 100;
+        Status = string.IsNullOrWhiteSpace(Status) ? null : Status.Trim().ToLowerInvariant();
+    }
+}

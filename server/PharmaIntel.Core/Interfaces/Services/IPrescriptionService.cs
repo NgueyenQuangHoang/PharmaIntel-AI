@@ -1,8 +1,9 @@
 // =============================================================================
 // Interface: IPrescriptionService
-// Chuc nang: Quan ly don thuoc + items cua user dang dang nhap (user-scoped).
-// Quy tac: Items chi sua/them/xoa khi prescription dang `draft`. Status transition
-// han che (xem PrescriptionService).
+// Chuc nang: Quan ly don thuoc + upload file (user-scoped).
+// Quy tac: User KHONG nhap PrescriptionItems - chi tao don rong + upload anh/PDF
+// don bac si. Duoc si la nguoi doc file va nhap items
+// (xem IPharmacistPrescriptionItemService).
 // =============================================================================
 using PharmaIntel.Core.DTOs.Common;
 using PharmaIntel.Core.DTOs.Prescriptions;
@@ -16,10 +17,6 @@ public interface IPrescriptionService
     Task<PrescriptionDto> CreateAsync(long userId, PrescriptionCreateRequest request, CancellationToken ct = default);
     Task<PrescriptionDto> UpdateAsync(long userId, long id, PrescriptionUpdateRequest request, CancellationToken ct = default);
     Task DeleteAsync(long userId, long id, CancellationToken ct = default);
-
-    Task<PrescriptionItemDto> AddItemAsync(long userId, long prescriptionId, PrescriptionItemCreateRequest request, CancellationToken ct = default);
-    Task<PrescriptionItemDto> UpdateItemAsync(long userId, long prescriptionId, long itemId, PrescriptionItemUpdateRequest request, CancellationToken ct = default);
-    Task RemoveItemAsync(long userId, long prescriptionId, long itemId, CancellationToken ct = default);
 
     // Upload file anh/PDF cho prescription. Stream se duoc copy ngay sang disk; caller
     // chiu trach nhiem dispose. Khong dung IFormFile o Core de tranh ref ASP.NET.

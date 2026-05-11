@@ -4,8 +4,6 @@ import type {
   Prescription,
   PrescriptionCreateRequest,
   PrescriptionDocument,
-  PrescriptionItem,
-  PrescriptionItemCreateRequest,
   PrescriptionListItem,
   PrescriptionUpdateRequest,
 } from './types'
@@ -37,11 +35,6 @@ export const prescriptionsApi = {
 
   update: async (id: number, body: PrescriptionUpdateRequest) => {
     const res = await httpClient.put<Prescription>(`/prescriptions/${id}`, body)
-    return res.data
-  },
-
-  addItem: async (id: number, body: PrescriptionItemCreateRequest) => {
-    const res = await httpClient.post<PrescriptionItem>(`/prescriptions/${id}/items`, body)
     return res.data
   },
 
