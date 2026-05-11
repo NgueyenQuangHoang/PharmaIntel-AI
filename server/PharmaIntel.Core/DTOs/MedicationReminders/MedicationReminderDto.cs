@@ -15,6 +15,9 @@ public class MedicationReminderListItemDto
     public DateOnly? EndDate { get; set; }
     public string Status { get; set; } = "active";
     public int LogCount { get; set; }
+    // Status cua log hom nay (taken/missed/skipped) - null neu chua log. Cho FE
+    // hien "Da ghi nhan" sau reload thay vi reset ve nut "Da uong".
+    public string? TodayLogStatus { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

@@ -56,6 +56,11 @@ public class MedicationReminderService : IMedicationReminderService
 
         var total = await query.CountAsync(ct);
 
+        // Range hom nay (UTC) de SQL co the dung index tren scheduled_at thay vi
+        // CAST(scheduled_at AS DATE). EF dich thanh `WHERE scheduled_at >= @start AND scheduled_at < @end`.
+        var todayStart = DateTime.UtcNow.Date;
+        var tomorrowStart = todayStart.AddDays(1);
+
         var items = await query
             .OrderByDescending(r => r.Status == "active")
             .ThenBy(r => r.ReminderTime)
@@ -73,6 +78,10 @@ public class MedicationReminderService : IMedicationReminderService
                 EndDate = r.EndDate,
                 Status = r.Status,
                 LogCount = r.Logs.Count,
+                TodayLogStatus = r.Logs
+                    .Where(l => l.ScheduledAt >= todayStart && l.ScheduledAt < tomorrowStart)
+                    .Select(l => l.Status)
+                    .FirstOrDefault(),
                 CreatedAt = r.CreatedAt,
                 UpdatedAt = r.UpdatedAt
             })
@@ -173,8 +182,19 @@ public class MedicationReminderService : IMedicationReminderService
             ?? throw new NotFoundException("lich nhac thuoc", reminderId);
         if (reminder.UserId != userId)
             throw new ForbiddenException("Lich nhac khong thuoc ve ban");
-        if (reminder.Status == "cancelled")
-            throw new ConflictException("Khong the them log cho lich nhac da huy");
+        // Chi cho log khi reminder dang chay. paused/completed/cancelled deu bi chan
+        // o tang service - khong tin UI chi an nut "Da uong" tren tab active vi user
+        // co the goi API truc tiep.
+        if (reminder.Status != "active")
+            throw new ConflictException($"Chi co the ghi nhan uong thuoc cho lich dang hoat dong (hien tai: {reminder.Status})");
+
+        // ScheduledAt phai nam trong [StartDate, EndDate]. EndDate null = mo, khong gioi
+        // han duoi. Tranh user log lui ve qua khu/tuong lai ngoai pham vi don thuoc.
+        var scheduledDate = DateOnly.FromDateTime(req.ScheduledAt);
+        if (scheduledDate < reminder.StartDate)
+            throw new ConflictException("Thoi diem ghi nhan truoc ngay bat dau lich nhac");
+        if (reminder.EndDate.HasValue && scheduledDate > reminder.EndDate.Value)
+            throw new ConflictException("Thoi diem ghi nhan sau ngay ket thuc lich nhac");
 
         // Upsert theo (ReminderId, ScheduledAt). User co the bam "Da uong" nham roi
         // doi sang "Bo qua", hoac double-click - moi truong hop deu chi giu 1 log cho
@@ -313,20 +333,29 @@ public class MedicationReminderService : IMedicationReminderService
             throw new ConflictException($"Khong the chuyen tu '{current}' sang '{next}'");
     }
 
-    private static MedicationReminderDto ToDetailDto(MedicationReminder r) => new()
+    private static MedicationReminderDto ToDetailDto(MedicationReminder r)
     {
-        Id = r.Id,
-        PrescriptionItemId = r.PrescriptionItemId,
-        MedicationName = r.MedicationName,
-        FrequencyType = r.FrequencyType,
-        ReminderTime = r.ReminderTime,
-        StartDate = r.StartDate,
-        EndDate = r.EndDate,
-        Status = r.Status,
-        LogCount = r.Logs?.Count ?? 0,
-        CreatedAt = r.CreatedAt,
-        UpdatedAt = r.UpdatedAt
-    };
+        var todayStart = DateTime.UtcNow.Date;
+        var tomorrowStart = todayStart.AddDays(1);
+        return new MedicationReminderDto
+        {
+            Id = r.Id,
+            PrescriptionItemId = r.PrescriptionItemId,
+            MedicationName = r.MedicationName,
+            FrequencyType = r.FrequencyType,
+            ReminderTime = r.ReminderTime,
+            StartDate = r.StartDate,
+            EndDate = r.EndDate,
+            Status = r.Status,
+            LogCount = r.Logs?.Count ?? 0,
+            TodayLogStatus = r.Logs?
+                .Where(l => l.ScheduledAt >= todayStart && l.ScheduledAt < tomorrowStart)
+                .Select(l => l.Status)
+                .FirstOrDefault(),
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt
+        };
+    }
 
     private static MedicationReminderLogDto ToLogDto(MedicationReminderLog l) => new()
     {

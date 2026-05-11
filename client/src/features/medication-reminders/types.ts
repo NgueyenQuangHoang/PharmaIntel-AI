@@ -21,6 +21,8 @@ export type MedicationReminderListItem = {
   endDate: string | null
   status: MedicationReminderStatus | string
   logCount: number
+  // Status cua log hom nay neu da co (taken/missed/skipped). Null = chua log hom nay.
+  todayLogStatus: MedicationReminderLogStatus | null
   createdAt: string
   updatedAt: string
 }

@@ -9,6 +9,12 @@ export function MedicationReminders() {
     return timeStr.substring(0, 5);
   };
 
+  const formatDateOnlyShort = (date: string | null) => {
+    if (!date) return '';
+    const [y, m, d] = date.split('-');
+    return `${d}/${m}`;
+  };
+
   const isUpcoming = (timeStr: string) => {
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
@@ -64,7 +70,7 @@ export function MedicationReminders() {
                   {reminder.endDate && (
                     <>
                       {' • đến hết '}
-                      {new Date(reminder.endDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                      {formatDateOnlyShort(reminder.endDate)}
                     </>
                   )}
                 </p>
@@ -77,7 +83,9 @@ export function MedicationReminders() {
                   <span className="text-[10px] bg-secondary-container px-2 py-0.5 rounded text-on-secondary-container font-medium mt-1 inline-block">Sắp tới</span>
                 )}
                 {passed && (
-                  <span className="material-symbols-outlined text-green-600 mt-1">check_circle</span>
+                  <span className="text-[10px] bg-surface-container-high px-2 py-0.5 rounded text-on-surface-variant font-medium mt-1 inline-block">
+                    Đã qua giờ
+                  </span>
                 )}
               </div>
             </div>

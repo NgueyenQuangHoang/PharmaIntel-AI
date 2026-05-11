@@ -6,6 +6,7 @@ import type {
   MedicationReminderLogStatus,
   MedicationReminderStatus,
 } from '@/features/medication-reminders/types'
+import { useNavigate } from 'react-router-dom'
 
 type Tab = 'active' | 'paused' | 'completed' | 'cancelled'
 
@@ -33,6 +34,12 @@ function extractApiError(err: unknown, fallback: string) {
 
 function formatTime(time: string) {
   return time.slice(0, 5)
+}
+
+function formatDateOnly(date: string | null) {
+  if (!date) return ''
+  const [y, m, d] = date.split('-')
+  return `${d}/${m}/${y}`
 }
 
 // Tao scheduledAt local theo ngay hom nay + gio reminder. Dung de log uong/bo qua.
@@ -67,6 +74,7 @@ function toUpdateBody(reminder: MedicationReminderListItem, status: MedicationRe
 }
 
 export function MedicationRemindersPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('active')
   const [q, setQ] = useState('')
   const [items, setItems] = useState<MedicationReminderListItem[]>([])
@@ -85,6 +93,15 @@ export function MedicationRemindersPage() {
         pageSize: 50,
       })
       setItems(res.items)
+      // Hydrate markedToday tu backend de "Da ghi nhan" survive reload. Chi can
+      // cho tab active (cac tab khac khong co nut log).
+      if (tab === 'active') {
+        const hydrated: Record<number, MedicationReminderLogStatus> = {}
+        for (const r of res.items) {
+          if (r.todayLogStatus) hydrated[r.id] = r.todayLogStatus
+        }
+        setMarkedToday(hydrated)
+      }
     } catch (err) {
       setError(extractApiError(err, 'Không tải được lịch nhắc thuốc'))
     } finally {
@@ -136,7 +153,7 @@ export function MedicationRemindersPage() {
       <header className="mb-6">
         <button
           type="button"
-          onClick={() => history.back()}
+          onClick={() => navigate('/profile')}
           className="mb-4 flex items-center gap-1 text-sm font-semibold text-on-surface-variant hover:text-primary"
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -227,13 +244,15 @@ export function MedicationRemindersPage() {
                   <p className="text-sm text-on-surface-variant">
                     {reminder.frequencyType}
                     {' • '}
-                    từ {new Date(reminder.startDate).toLocaleDateString('vi-VN')}
+                    từ {formatDateOnly(reminder.startDate)}
                     {reminder.endDate
-                      ? ` đến ${new Date(reminder.endDate).toLocaleDateString('vi-VN')}`
+                      ? ` đến ${formatDateOnly(reminder.endDate)}`
                       : ' • chưa có ngày kết thúc'}
                   </p>
                   <p className="text-xs mt-1 text-outline">
-                    {isPrescriptionBased ? 'Tạo từ đơn thuốc đã xác minh' : 'Lịch nhắc tự tạo'}
+                    {isPrescriptionBased ? 'Tạo từ đơn thuốc đã xác minh' : 'Lịch nhắc thủ công'}
+                    {marked === 'taken' && <span className="ml-2 text-green-600 font-medium">• Hôm nay: đã uống</span>}
+                    {marked === 'skipped' && <span className="ml-2 text-orange-600 font-medium">• Hôm nay: đã bỏ qua</span>}
                   </p>
                 </div>
               </div>
@@ -268,7 +287,10 @@ export function MedicationRemindersPage() {
                     <button
                       type="button"
                       disabled={busyId === reminder.id}
-                      onClick={() => changeStatus(reminder, 'cancelled')}
+                      onClick={() => {
+                        if (!confirm('Bạn chắc chắn muốn hủy lịch nhắc này?')) return
+                        changeStatus(reminder, 'cancelled')
+                      }}
                       className="px-4 py-2 rounded-xl bg-error-container text-on-error-container font-bold text-sm disabled:opacity-50"
                     >
                       Hủy
