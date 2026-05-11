@@ -74,6 +74,48 @@ public class OrderService : IOrderService
                 throw new ConflictException("Phuong thuc thanh toan khong con hoat dong");
         }
 
+        // 3b. Validate prescription neu gio co thuoc ke don
+        // Map medicationId -> prescription_item_id de gan vao OrderItem sau.
+        var rxRequiredCart = cartItems.Where(ci => ci.Medication.IsPrescriptionRequired).ToList();
+        Prescription? prescription = null;
+        var prescriptionItemMap = new Dictionary<long, long>(); // medicationId -> prescriptionItemId
+
+        if (rxRequiredCart.Count > 0)
+        {
+            if (req.PrescriptionId is null or 0)
+                throw new ConflictException(
+                    "Gio hang co thuoc ke don - vui long chon don thuoc da duoc duoc si xac minh");
+
+            prescription = await _db.Prescriptions
+                .Include(p => p.Items)
+                .FirstOrDefaultAsync(p => p.Id == req.PrescriptionId.Value, ct)
+                ?? throw new NotFoundException("don thuoc", req.PrescriptionId.Value);
+
+            if (prescription.UserId != userId)
+                throw new ForbiddenException("Don thuoc khong thuoc ve ban");
+            if (prescription.VerificationStatus != "verified")
+                throw new ConflictException(
+                    $"Don thuoc chua duoc xac minh (trang thai: '{prescription.VerificationStatus}')");
+            if (prescription.Status is not ("draft" or "active"))
+                throw new ConflictException(
+                    $"Don thuoc khong con hieu luc (trang thai: '{prescription.Status}')");
+
+            // Build map cua nhung medication ke don co trong prescription
+            foreach (var pi in prescription.Items)
+            {
+                if (pi.MedicationId.HasValue)
+                    prescriptionItemMap[pi.MedicationId.Value] = pi.Id;
+            }
+
+            // Moi thuoc ke don trong gio phai co mat trong prescription
+            foreach (var ci in rxRequiredCart)
+            {
+                if (!prescriptionItemMap.ContainsKey(ci.Medication.Id))
+                    throw new ConflictException(
+                        $"Thuoc '{ci.Medication.Name}' khong co trong don thuoc da chon");
+            }
+        }
+
         // 4. Validate stock + tinh subtotal
         decimal subtotal = 0m;
         foreach (var ci in cartItems)
@@ -116,7 +158,7 @@ public class OrderService : IOrderService
             UserId = userId,
             AddressId = address.Id,
             PaymentMethodId = pm.Id,
-            PrescriptionId = null,
+            PrescriptionId = prescription?.Id,
             OrderCode = orderCode,
             Subtotal = subtotal,
             ShippingFee = ShippingFeeFlat,
@@ -138,9 +180,16 @@ public class OrderService : IOrderService
         {
             var m = ci.Medication;
             var unitFinal = Math.Round(m.Price * (1 - m.DiscountPercent / 100m), 2);
+
+            // Gan PrescriptionItemId neu thuoc nay co trong prescription (FK SetNull cho phep null)
+            long? prescriptionItemId = null;
+            if (m.IsPrescriptionRequired && prescriptionItemMap.TryGetValue(m.Id, out var piId))
+                prescriptionItemId = piId;
+
             order.Items.Add(new OrderItem
             {
                 MedicationId = m.Id,
+                PrescriptionItemId = prescriptionItemId,
                 MedicationNameSnapshot = m.Name,
                 Quantity = ci.Quantity,
                 UnitPrice = m.Price,

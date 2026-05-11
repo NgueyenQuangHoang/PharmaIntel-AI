@@ -38,7 +38,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             t.HasCheckConstraint("CK_users_auth_provider",
                 "[auth_provider] IN ('local','google','apple')");
             t.HasCheckConstraint("CK_users_role",
-                "[role] IN ('user','admin')");
+                "[role] IN ('user','admin','pharmacist')");
         });
     }
 }

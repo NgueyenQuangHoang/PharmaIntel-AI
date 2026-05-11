@@ -19,6 +19,7 @@
 //   - VerificationStatus do pharmacist quan ly o module khac, khong expose o API nay.
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using PharmaIntel.Core.DTOs.Common;
 using PharmaIntel.Core.DTOs.Prescriptions;
 using PharmaIntel.Core.Entities;
@@ -30,11 +31,20 @@ namespace PharmaIntel.Infrastructure.Services;
 
 public class PrescriptionService : IPrescriptionService
 {
-    private readonly PharmaIntelDbContext _db;
+    private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
+    private static readonly HashSet<string> AllowedExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".pdf" };
+    private static readonly HashSet<string> AllowedContentTypes =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "image/jpeg", "image/png", "image/webp", "application/pdf" };
 
-    public PrescriptionService(PharmaIntelDbContext db)
+    private readonly PharmaIntelDbContext _db;
+    private readonly IHostEnvironment _env;
+
+    public PrescriptionService(PharmaIntelDbContext db, IHostEnvironment env)
     {
         _db = db;
+        _env = env;
     }
 
     public async Task<PagedResult<PrescriptionListItemDto>> ListMyAsync(long userId, PrescriptionListQuery q, CancellationToken ct = default)
@@ -241,6 +251,130 @@ public class PrescriptionService : IPrescriptionService
     }
 
     // -------------------------------------------------------------------------
+    // Document upload / list
+    // -------------------------------------------------------------------------
+
+    public async Task<PrescriptionDocumentDto> UploadDocumentAsync(
+        long userId,
+        long prescriptionId,
+        Stream content,
+        string fileName,
+        string contentType,
+        long lengthBytes,
+        CancellationToken ct = default)
+    {
+        // 1. Validate file metadata
+        if (content is null || lengthBytes <= 0)
+            throw new ValidationException("file", "File khong duoc rong");
+        if (lengthBytes > MaxFileSize)
+            throw new ValidationException("file", "File vuot qua 10MB");
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ValidationException("file", "Thieu ten file");
+
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
+            throw new ValidationException("file",
+                $"Extension '{ext}' khong duoc ho tro. Cho phep: {string.Join(", ", AllowedExtensions)}");
+
+        if (!string.IsNullOrEmpty(contentType) && !AllowedContentTypes.Contains(contentType))
+            throw new ValidationException("file",
+                $"ContentType '{contentType}' khong duoc ho tro");
+
+        // 2. Load prescription with ownership check
+        var rx = await _db.Prescriptions.FirstOrDefaultAsync(p => p.Id == prescriptionId, ct)
+                 ?? throw new NotFoundException("don thuoc", prescriptionId);
+        if (rx.UserId != userId)
+            throw new ForbiddenException("Don thuoc khong thuoc ve ban");
+        if (rx.Status == "cancelled")
+            throw new ConflictException("Don thuoc da bi huy - khong the upload file");
+
+        // 3. Resolve paths. Dung IHostEnvironment (Core hosting abstraction) thay vi
+        // IWebHostEnvironment de Infrastructure khong phai ref ASP.NET.
+        // Webroot mac dinh = ContentRootPath/wwwroot (khop convention ASP.NET).
+        var webRoot = Path.Combine(_env.ContentRootPath, "wwwroot");
+
+        var dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var newName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
+
+        // Relative path luu DB (forward slash de FE ghep URL khong cau hinh OS)
+        var relativePath = $"/uploads/prescriptions/{userId}/{dateFolder}/{newName}";
+
+        // Physical path tren disk
+        var folder = Path.Combine(webRoot, "uploads", "prescriptions",
+            userId.ToString(), dateFolder);
+        Directory.CreateDirectory(folder);
+        var physicalPath = Path.Combine(folder, newName);
+
+        // 4. Ghi file truoc, neu SaveChanges fail thi cleanup
+        await using (var fs = File.Create(physicalPath))
+        {
+            await content.CopyToAsync(fs, ct);
+        }
+
+        try
+        {
+            var doc = new PrescriptionDocument
+            {
+                PrescriptionId = rx.Id,
+                FileUrl = relativePath,
+                VerificationStatus = "pending",
+                Notes = null,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.PrescriptionDocuments.Add(doc);
+
+            // Cap nhat prescription.VerificationStatus theo rule:
+            //  - not_required / rejected -> pending (user upload lai)
+            //  - pending -> giu pending
+            //  - verified -> giu verified (document them la phu)
+            if (rx.VerificationStatus is "not_required" or "rejected")
+            {
+                rx.VerificationStatus = "pending";
+                rx.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return ToDocumentDto(doc);
+        }
+        catch
+        {
+            // Rollback file da ghi
+            try { if (File.Exists(physicalPath)) File.Delete(physicalPath); }
+            catch { /* swallow - file orphan se duoc cleanup script don sau */ }
+            throw;
+        }
+    }
+
+    public async Task<IReadOnlyList<PrescriptionDocumentDto>> ListDocumentsAsync(
+        long userId, long prescriptionId, CancellationToken ct = default)
+    {
+        var rx = await _db.Prescriptions.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == prescriptionId, ct)
+            ?? throw new NotFoundException("don thuoc", prescriptionId);
+        if (rx.UserId != userId)
+            throw new ForbiddenException("Don thuoc khong thuoc ve ban");
+
+        var docs = await _db.PrescriptionDocuments.AsNoTracking()
+            .Where(d => d.PrescriptionId == prescriptionId)
+            .OrderByDescending(d => d.CreatedAt)
+            .Select(d => new PrescriptionDocumentDto
+            {
+                Id = d.Id,
+                PrescriptionId = d.PrescriptionId,
+                FileUrl = d.FileUrl,
+                VerificationStatus = d.VerificationStatus,
+                VerifiedByPharmacistId = d.VerifiedByPharmacistId,
+                Notes = d.Notes,
+                CreatedAt = d.CreatedAt,
+                UpdatedAt = d.UpdatedAt
+            })
+            .ToListAsync(ct);
+
+        return docs;
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
@@ -304,6 +438,18 @@ public class PrescriptionService : IPrescriptionService
         Dosage = i.Dosage,
         Frequency = i.Frequency,
         Duration = i.Duration
+    };
+
+    private static PrescriptionDocumentDto ToDocumentDto(PrescriptionDocument d) => new()
+    {
+        Id = d.Id,
+        PrescriptionId = d.PrescriptionId,
+        FileUrl = d.FileUrl,
+        VerificationStatus = d.VerificationStatus,
+        VerifiedByPharmacistId = d.VerifiedByPharmacistId,
+        Notes = d.Notes,
+        CreatedAt = d.CreatedAt,
+        UpdatedAt = d.UpdatedAt
     };
 
     private static PrescriptionDto ToDetailDto(Prescription p) => new()

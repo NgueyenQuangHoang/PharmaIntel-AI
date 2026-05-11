@@ -80,4 +80,31 @@ public class PrescriptionsController : ControllerBase
         await _service.RemoveItemAsync(User.GetUserId(), id, itemId, ct);
         return NoContent();
     }
+
+    // -------------------------------------------------------------------------
+    // Document upload / list
+    // -------------------------------------------------------------------------
+
+    // POST /api/prescriptions/{id}/documents
+    // Form field "file" (IFormFile). Tao row prescription_documents status pending
+    // va set prescription.verification_status = pending neu chua duoc duyet.
+    [HttpPost("{id:long}/documents")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<PrescriptionDocumentDto>> UploadDocument(
+        long id, IFormFile file, CancellationToken ct)
+    {
+        if (file is null)
+            return BadRequest(new { error = "Thieu field 'file'" });
+
+        await using var stream = file.OpenReadStream();
+        var dto = await _service.UploadDocumentAsync(
+            User.GetUserId(), id, stream, file.FileName, file.ContentType, file.Length, ct);
+
+        return CreatedAtAction(nameof(ListDocuments), new { id }, dto);
+    }
+
+    [HttpGet("{id:long}/documents")]
+    public async Task<ActionResult<IReadOnlyList<PrescriptionDocumentDto>>> ListDocuments(
+        long id, CancellationToken ct)
+        => Ok(await _service.ListDocumentsAsync(User.GetUserId(), id, ct));
 }

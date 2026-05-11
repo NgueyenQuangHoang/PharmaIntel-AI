@@ -1,0 +1,3 @@
+# Ignore tat ca file user upload trong thu muc nay - khong commit content len git
+*
+!.gitignore

@@ -16,6 +16,11 @@ public class CheckoutRequest
     // "cod" (mac dinh) | "bank_transfer". Backend ensure-or-create PaymentMethod tuong ung.
     // Khong dung khi PaymentMethodId co gia tri (ID quyet dinh).
     public string? PaymentType { get; set; }
+
+    // Bat buoc khi gio hang co thuoc ke don (Medication.IsPrescriptionRequired = true).
+    // Prescription phai thuoc user, status='active', verification_status='verified',
+    // va cac thuoc ke don trong gio phai khop voi PrescriptionItem.
+    public long? PrescriptionId { get; set; }
 }
 
 public class UpdateOrderStatusRequest

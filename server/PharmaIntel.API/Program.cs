@@ -159,6 +159,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowClient");
+// Phuc vu file user upload qua wwwroot/uploads/... (vd: /uploads/prescriptions/.../xxx.jpg).
+// Note: file public theo URL - chua co auth tren tang file. Voi don thuoc y te, prod
+// nen chuyen sang endpoint co auth + signed URL.
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

@@ -8,6 +8,11 @@ namespace PharmaIntel.Core.Entities;
 public class Pharmacist
 {
     public long Id { get; set; }
+
+    // Nullable: ho so duoc si co the duoc tao truoc khi gan tai khoan dang nhap.
+    // Khi user roi/khoa, FK Restrict giu profile lai.
+    public long? UserId { get; set; }
+
     public string FullName { get; set; } = string.Empty;
     public string LicenseNumber { get; set; } = string.Empty;
     public string? Specialization { get; set; }
@@ -19,6 +24,7 @@ public class Pharmacist
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    public User? User { get; set; }
     public ICollection<PrescriptionDocument> VerifiedDocuments { get; set; } = new List<PrescriptionDocument>();
     public ICollection<PharmacistChatSession> ChatSessions { get; set; } = new List<PharmacistChatSession>();
 }

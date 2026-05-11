@@ -859,6 +859,23 @@ curl -X POST http://localhost:5292/api/orders/checkout \
   -d '{"addressId":1,"paymentMethodId":1}'
 ```
 
+**Curl (gio co thuoc ke don)**
+
+```bash
+curl -X POST http://localhost:5292/api/orders/checkout \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"addressId":1,"paymentType":"cod","prescriptionId":5}'
+```
+
+**Field `prescriptionId`** la **bat buoc** khi gio hang co bat ky thuoc nao co
+`Medication.IsPrescriptionRequired = true`. Backend kiem tra:
+- Prescription phai thuoc user (`UserId` khop) -> 403 neu khac.
+- `VerificationStatus = "verified"` (duoc duoc si duyet) -> 409 neu chua.
+- `Status` la `draft` hoac `active` -> 409 neu da completed/cancelled.
+- Moi thuoc ke don trong gio phai co mat trong `prescription.Items` (theo `MedicationId`).
+- Order.PrescriptionId va OrderItem.PrescriptionItemId duoc set tuong ung de truy vet.
+
 **Response 201**
 
 ```json
@@ -891,9 +908,9 @@ curl -X POST http://localhost:5292/api/orders/checkout \
 | ------ | ------------------------------------------------------------------ |
 | 400    | validation (addressId <= 0, hoac paymentMethodId truyen sai > 0)    |
 | 401    | thieu token                                                        |
-| 403    | address/payment method khong thuoc user                            |
-| 404    | address/payment method khong ton tai                               |
-| 409    | cart trong, medication ngung kinh doanh, het hang                  |
+| 403    | address/payment method/don thuoc khong thuoc user                  |
+| 404    | address/payment method/don thuoc khong ton tai                     |
+| 409    | cart trong, medication ngung kinh doanh, het hang, thuoc ke don thieu prescriptionId, don thuoc chua verified hoac da completed, thuoc khong khop don |
 
 ---
 
