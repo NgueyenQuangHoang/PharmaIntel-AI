@@ -1,6 +1,8 @@
 import { useAppSelector } from '@/hooks/redux';
+import { useNavigate } from 'react-router-dom';
 
 export function CurrentPrescriptions() {
+  const navigate = useNavigate();
   const { data, status } = useAppSelector((state) => state.profile.prescriptions);
 
   return (
@@ -20,7 +22,11 @@ export function CurrentPrescriptions() {
         )}
 
         {data?.items.map((prescription) => (
-          <div key={prescription.id} className="flex gap-4 group hover:bg-surface-container-highest p-3 -mx-3 rounded-xl transition-colors cursor-pointer">
+          <div 
+            key={prescription.id} 
+            onClick={() => navigate(`/prescriptions/${prescription.id}`)}
+            className="flex gap-4 group hover:bg-surface-container-highest p-3 -mx-3 rounded-xl transition-colors cursor-pointer"
+          >
             <div className="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center shrink-0 shadow-sm border border-outline-variant/10">
               <span className="material-symbols-outlined text-primary">pill</span>
             </div>
@@ -52,12 +58,14 @@ export function CurrentPrescriptions() {
         ))}
       </div>
       
-      {data && data.totalCount > data.items.length && (
-        <button className="mt-6 text-primary font-bold text-sm flex items-center gap-1 hover:text-primary-container transition-colors py-2">
-          Xem tất cả đơn thuốc
-          <span className="material-symbols-outlined text-sm">arrow_forward</span>
-        </button>
-      )}
+      {/* Remove condition to always show the button since it now goes to the new Prescriptions management page */}
+      <button 
+        onClick={() => navigate('/prescriptions')}
+        className="mt-6 text-primary font-bold text-sm flex items-center gap-1 hover:text-primary-container transition-colors py-2"
+      >
+        Xem tất cả đơn thuốc
+        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+      </button>
     </section>
   );
 }

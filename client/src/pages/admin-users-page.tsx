@@ -14,7 +14,7 @@ import { formatVnd } from '@/utils/format'
 import { useAuth } from '@/hooks/useAuth'
 
 type ConfirmAction =
-  | { kind: 'role'; user: AdminUser; nextRole: 'user' | 'admin' }
+  | { kind: 'role'; user: AdminUser; nextRole: 'user' | 'admin' | 'pharmacist'; licenseNumber?: string }
   | { kind: 'lock'; user: AdminUser; nextActive: boolean }
   | { kind: 'delete'; user: AdminUser }
 
@@ -54,7 +54,10 @@ export function AdminUsersPage() {
     setActionError(null)
     try {
       if (confirm.kind === 'role') {
-        await adminApi.users.updateRole(confirm.user.id, { role: confirm.nextRole })
+        await adminApi.users.updateRole(confirm.user.id, { 
+          role: confirm.nextRole,
+          licenseNumber: confirm.licenseNumber
+        })
       } else if (confirm.kind === 'lock') {
         await adminApi.users.updateStatus(confirm.user.id, { isActive: confirm.nextActive })
       } else {
@@ -95,17 +98,22 @@ export function AdminUsersPage() {
     {
       key: 'role',
       header: 'Vai trò',
-      cell: (u) => (
-        <span
-          className={`whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold ${
-            u.role === 'admin'
-              ? 'bg-tertiary-container/60 text-tertiary'
-              : 'bg-surface-container-high text-on-surface-variant'
-          }`}
-        >
-          {u.role === 'admin' ? 'Quản trị' : 'Người dùng'}
-        </span>
-      ),
+      cell: (u) => {
+        let label = 'Người dùng'
+        let colorClass = 'bg-surface-container-high text-on-surface-variant'
+        if (u.role === 'admin') {
+          label = 'Quản trị'
+          colorClass = 'bg-tertiary-container/60 text-tertiary'
+        } else if (u.role === 'pharmacist') {
+          label = 'Dược sĩ'
+          colorClass = 'bg-secondary-container/60 text-secondary'
+        }
+        return (
+          <span className={`whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold ${colorClass}`}>
+            {label}
+          </span>
+        )
+      },
     },
     {
       key: 'status',
@@ -141,17 +149,16 @@ export function AdminUsersPage() {
         const isSelf = currentUser?.id === u.id
         return (
           <div className="flex items-center justify-end gap-1">
-            <button
-              type="button"
+            <select
+              value={u.role || 'user'}
               disabled={isSelf}
-              onClick={() =>
-                setConfirm({ kind: 'role', user: u, nextRole: u.role === 'admin' ? 'user' : 'admin' })
-              }
-              title={isSelf ? 'Không thể đổi vai trò của chính mình' : 'Đổi vai trò'}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed"
+              onChange={(e) => setConfirm({ kind: 'role', user: u, nextRole: e.target.value as any })}
+              className="px-2 py-1 text-sm rounded-lg border border-outline-variant/40 bg-surface-container-low outline-none disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
-            </button>
+              <option value="user">Người dùng</option>
+              <option value="admin">Quản trị</option>
+              <option value="pharmacist">Dược sĩ</option>
+            </select>
             <button
               type="button"
               disabled={isSelf}
@@ -218,12 +225,13 @@ export function AdminUsersPage() {
         </div>
         <select
           value={filter.role ?? ''}
-          onChange={(e) => setFilter((f) => ({ ...f, role: (e.target.value || undefined) as 'user' | 'admin' | undefined, page: 1 }))}
+          onChange={(e) => setFilter((f) => ({ ...f, role: (e.target.value || undefined) as 'user' | 'admin' | 'pharmacist' | undefined, page: 1 }))}
           className="rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none"
         >
           <option value="">Tất cả vai trò</option>
           <option value="user">Người dùng</option>
           <option value="admin">Quản trị</option>
+          <option value="pharmacist">Dược sĩ</option>
         </select>
         <select
           value={filter.isActive == null ? '' : String(filter.isActive)}
@@ -305,7 +313,22 @@ export function AdminUsersPage() {
             <>
               <p>
                 {confirm.kind === 'role' && (
-                  <>Đổi vai trò của <b>{confirm.user.fullName}</b> thành <b>{confirm.nextRole}</b>?</>
+                  <>
+                    <p>Đổi vai trò của <b>{confirm.user.fullName}</b> thành <b>{confirm.nextRole}</b>?</p>
+                    {confirm.nextRole === 'pharmacist' && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-semibold mb-1">Số giấy phép (Tùy chọn)</label>
+                        <input
+                          type="text"
+                          placeholder="Ví dụ: CCHN-12345"
+                          value={confirm.licenseNumber || ''}
+                          onChange={(e) => setConfirm({ ...confirm, licenseNumber: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-outline-variant/40 bg-surface-container-low outline-none focus:border-primary text-sm"
+                        />
+                        <p className="text-xs text-on-surface-variant mt-1">Để trống sẽ tự động tạo mã PENDING.</p>
+                      </div>
+                    )}
+                  </>
                 )}
                 {confirm.kind === 'lock' && (
                   <>

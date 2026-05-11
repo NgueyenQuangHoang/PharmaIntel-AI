@@ -3,12 +3,14 @@
 // =============================================================================
 import type { Paged } from '@/features/categories/types'
 
+export type AppRole = 'user' | 'admin' | 'pharmacist'
+
 export type AdminUser = {
   id: number
   fullName: string
   email: string
   avatarUrl: string | null
-  role: 'user' | 'admin' | string
+  role: AppRole | string
   isActive: boolean
   authProvider: string
   totalOrders: number
@@ -21,13 +23,13 @@ export type AdminUserListQuery = {
   page?: number
   pageSize?: number
   q?: string
-  role?: 'user' | 'admin' | ''
+  role?: AppRole | ''
   isActive?: boolean | null
 }
 
 export type AdminUsersPaged = Paged<AdminUser>
 
-export type UpdateUserRoleRequest = { role: 'user' | 'admin' }
+export type UpdateUserRoleRequest = { role: AppRole }
 export type UpdateUserStatusRequest = { isActive: boolean }
 
 // === Stats ===

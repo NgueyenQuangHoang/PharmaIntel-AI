@@ -2,7 +2,11 @@
 // Chuc nang: Quan ly user cho admin (list, doi role, lock/unlock, xoa mem).
 // Quy tac:
 //   - Khong cho admin doi role / lock / xoa chinh ban than -> ConflictException
-//   - Role chi nhan "user" hoac "admin" (lowercase) -> ValidationException
+//   - Role chi nhan "user" | "admin" | "pharmacist" (lowercase) -> ValidationException
+//   - Khi gan role "pharmacist": tu dong tao row trong bang pharmacists
+//     (LicenseNumber placeholder "PENDING-{userId}") hoac reactivate row da co
+//     -> service xac minh don thuoc lookup theo pharmacists.user_id.
+//   - Khi demote khoi "pharmacist": set pharmacists.is_active = false (giu row de FK lich su).
 //   - DeleteAsync = soft delete + anonymize PII (KHONG hard delete):
 //       * IsActive = false -> AuthService.LoginAsync chan login
 //       * Email/FullName/AvatarUrl/AuthProviderId duoc anonymize
@@ -12,6 +16,7 @@
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.DTOs.Admin;
 using PharmaIntel.Core.DTOs.Common;
+using PharmaIntel.Core.Entities;
 using PharmaIntel.Core.Exceptions;
 using PharmaIntel.Core.Interfaces.Services;
 using PharmaIntel.Infrastructure.Data;
@@ -20,7 +25,7 @@ namespace PharmaIntel.Infrastructure.Services;
 
 public class AdminUserService : IAdminUserService
 {
-    private static readonly string[] AllowedRoles = ["user", "admin"];
+    private static readonly string[] AllowedRoles = ["user", "admin", "pharmacist"];
 
     private readonly PharmaIntelDbContext _db;
 
@@ -122,6 +127,53 @@ public class AdminUserService : IAdminUserService
 
         user.Role = role;
         user.UpdatedAt = DateTime.UtcNow;
+
+        // Dong bo ho so duoc si voi role:
+        //  - Promote -> pharmacist: tao moi (hoac reactivate) row trong pharmacists.
+        //    LicenseNumber dat placeholder "PENDING-{userId}" de thoa unique + NOT NULL;
+        //    admin se cap nhat so giay phep that sau.
+        //  - Demote khoi pharmacist: vo hieu hoa profile de chan verify tiep,
+        //    KHONG xoa cung de giu FK lich su xac minh don thuoc.
+        var profile = await _db.Pharmacists.FirstOrDefaultAsync(p => p.UserId == targetUserId, ct);
+        if (role == "pharmacist")
+        {
+            if (profile is null)
+            {
+                _db.Pharmacists.Add(new Pharmacist
+                {
+                    UserId = targetUserId,
+                    FullName = user.FullName,
+                    LicenseNumber = !string.IsNullOrWhiteSpace(req.LicenseNumber) ? req.LicenseNumber.Trim() : $"PENDING-{targetUserId}",
+                    Email = user.Email,
+                    AvatarUrl = user.AvatarUrl,
+                    IsActive = true
+                });
+            }
+            else 
+            {
+                bool profileUpdated = false;
+                if (!profile.IsActive)
+                {
+                    profile.IsActive = true;
+                    profileUpdated = true;
+                }
+                if (!string.IsNullOrWhiteSpace(req.LicenseNumber))
+                {
+                    profile.LicenseNumber = req.LicenseNumber.Trim();
+                    profileUpdated = true;
+                }
+                if (profileUpdated)
+                {
+                    profile.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+        }
+        else if (profile is { IsActive: true })
+        {
+            profile.IsActive = false;
+            profile.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _db.SaveChangesAsync(ct);
 
         return await GetByIdAsync(targetUserId, ct);

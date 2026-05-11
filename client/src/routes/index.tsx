@@ -14,6 +14,9 @@ import { AdminUsersPage } from '@/pages/admin-users-page';
 import { AdminCategoriesPage } from '@/pages/admin-categories-page';
 import { AdminMedicationsPage } from '@/pages/admin-medications-page';
 import { AdminOrdersPage } from '@/pages/admin-orders-page';
+import { PrescriptionsPage } from '@/pages/prescriptions-page';
+import { PrescriptionDetailPage } from '@/pages/prescription-detail-page';
+import { PharmacistDashboardPage } from '@/pages/pharmacist-dashboard-page';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -30,6 +33,16 @@ function ProtectedLayoutWrapper() {
 function AdminLayoutWrapper() {
   return (
     <ProtectedRoute requireRole="admin">
+      <MainLayout>
+        <Outlet />
+      </MainLayout>
+    </ProtectedRoute>
+  );
+}
+
+function PharmacistLayoutWrapper() {
+  return (
+    <ProtectedRoute requireRole="pharmacist">
       <MainLayout>
         <Outlet />
       </MainLayout>
@@ -55,6 +68,8 @@ export function AppRoutes() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersListPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/prescriptions" element={<PrescriptionsPage />} />
+          <Route path="/prescriptions/:id" element={<PrescriptionDetailPage />} />
         </Route>
 
         {/* Admin area - yeu cau role=admin */}
@@ -64,6 +79,11 @@ export function AppRoutes() {
           <Route path="/admin/categories" element={<AdminCategoriesPage />} />
           <Route path="/admin/medications" element={<AdminMedicationsPage />} />
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
+        </Route>
+
+        {/* Pharmacist area - yeu cau role=pharmacist */}
+        <Route element={<PharmacistLayoutWrapper />}>
+          <Route path="/pharmacist" element={<PharmacistDashboardPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

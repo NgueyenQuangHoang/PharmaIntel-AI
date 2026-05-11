@@ -18,8 +18,9 @@ public class CheckoutRequest
     public string? PaymentType { get; set; }
 
     // Bat buoc khi gio hang co thuoc ke don (Medication.IsPrescriptionRequired = true).
-    // Prescription phai thuoc user, status='active', verification_status='verified',
-    // va cac thuoc ke don trong gio phai khop voi PrescriptionItem.
+    // Prescription phai thuoc user, status in ('draft','active'),
+    // verification_status='verified', va cac thuoc ke don trong gio phai khop
+    // voi PrescriptionItem.
     public long? PrescriptionId { get; set; }
 }
 

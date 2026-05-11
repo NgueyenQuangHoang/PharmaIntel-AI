@@ -20,6 +20,7 @@ function getStoredLang(): Language {
 export function Header() {
   const role = useAppSelector((s) => s.auth.user?.role);
   const isAdmin = role?.toLowerCase() === 'admin';
+  const isPharmacist = role?.toLowerCase() === 'pharmacist';
   const cartTotalItems = useAppSelector((s) => s.cart.cart?.totalItems ?? 0);
   const dispatch = useAppDispatch();
   const { isAuthenticated, logout, user } = useAuth();
@@ -131,6 +132,15 @@ export function Header() {
             >
               <span className="material-symbols-outlined text-[18px]">shield_person</span>
               Admin
+            </NavLink>
+          )}
+          {isPharmacist && (
+            <NavLink
+              to="/pharmacist"
+              className={({ isActive }) => `font-manrope tracking-tight font-semibold duration-200 ease-in-out inline-flex items-center gap-1 ${isActive ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-600 pb-1' : 'text-slate-600 dark:text-slate-400 hover:text-blue-500'}`}
+            >
+              <span className="material-symbols-outlined text-[18px]">local_pharmacy</span>
+              Dược sĩ
             </NavLink>
           )}
         </div>

@@ -60,4 +60,5 @@ export type CheckoutRequest = {
   addressId: number
   paymentMethodId?: number | null  // null/omit -> backend ensure-or-create theo paymentType
   paymentType?: CheckoutPaymentType  // 'cod' (default) | 'bank_transfer'
+  prescriptionId?: number | null
 }

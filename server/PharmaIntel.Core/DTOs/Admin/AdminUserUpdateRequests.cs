@@ -7,6 +7,7 @@ namespace PharmaIntel.Core.DTOs.Admin;
 public class UpdateUserRoleRequest
 {
     public string Role { get; set; } = "user";
+    public string? LicenseNumber { get; set; }
 }
 
 public class UpdateUserStatusRequest

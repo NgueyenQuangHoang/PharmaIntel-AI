@@ -14,6 +14,9 @@ import type { AddressDto } from '@/features/addresses/types'
 import { ordersApi } from '@/features/orders/orders-api'
 import type { CheckoutPaymentType } from '@/features/orders/types'
 import { fetchCartThunk } from '@/features/cart/cart-slice'
+import { prescriptionsApi } from '@/features/prescriptions/prescriptions-api'
+import type { PrescriptionListItem } from '@/features/prescriptions/types'
+import { PrescriptionPicker } from '@/features/prescriptions/components/PrescriptionPicker'
 
 const SHIPPING_FEE = 30000
 const EXPRESS_SHIPPING_FEE = 55000
@@ -179,6 +182,10 @@ export function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  const [verifiedPrescriptions, setVerifiedPrescriptions] = useState<PrescriptionListItem[]>([])
+  const [prescriptionsLoading, setPrescriptionsLoading] = useState(false)
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<number | null>(null)
+
   // Fetch provinces
   useEffect(() => {
     let cancelled = false
@@ -261,6 +268,44 @@ export function CheckoutPage() {
     }
   }, [])
 
+  // Load prescriptions if cart has required meds
+  useEffect(() => {
+    if (!cart?.hasPrescriptionRequired) return
+
+    let cancelled = false
+    setPrescriptionsLoading(true)
+
+    prescriptionsApi
+      .listMy({ page: 1, pageSize: 50 })
+      .then((res) => {
+        if (cancelled) return
+
+        const usable = res.items.filter(
+          (p) =>
+            p.verificationStatus === 'verified' &&
+            (p.status === 'draft' || p.status === 'active'),
+        )
+
+        setVerifiedPrescriptions(usable)
+
+        if (usable.length > 0) {
+          setSelectedPrescriptionId((current) => current ?? usable[0].id)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setSubmitError(extractApiError(err, 'Không tải được danh sách đơn thuốc'))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPrescriptionsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [cart?.hasPrescriptionRequired])
+
   const shippingFee = deliveryMethod === 'standard' ? SHIPPING_FEE : EXPRESS_SHIPPING_FEE
   const orderTotal = cart ? cart.total + shippingFee : 0
 
@@ -327,12 +372,19 @@ export function CheckoutPage() {
       return
     }
 
+    if (cart.hasPrescriptionRequired && !selectedPrescriptionId) {
+      setSubmitError('Giỏ hàng có thuốc kê đơn. Vui lòng chọn đơn thuốc đã được dược sĩ xác minh.')
+      setSubmitting(false)
+      return
+    }
+
     try {
       setSubmitting(true)
       const order = await ordersApi.checkout({
         addressId,
         paymentMethodId: null,
         paymentType,
+        prescriptionId: cart.hasPrescriptionRequired ? selectedPrescriptionId : null,
       })
       // Refresh cart de UI badge ve 0
       await dispatch(fetchCartThunk())
@@ -605,6 +657,47 @@ export function CheckoutPage() {
             </div>
           </section>
 
+          {/* Prescriptions Section */}
+          {cart.hasPrescriptionRequired && (
+            <section>
+              <div className="flex items-center gap-3 mb-6">
+                <span
+                  className="material-symbols-outlined text-primary"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  clinical_notes
+                </span>
+                <h2 className="text-2xl font-bold tracking-tight font-headline">
+                  Đơn thuốc xác minh
+                </h2>
+              </div>
+
+              <PrescriptionPicker
+                prescriptions={verifiedPrescriptions}
+                selectedId={selectedPrescriptionId}
+                onSelect={setSelectedPrescriptionId}
+                loading={prescriptionsLoading}
+              />
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate('/prescriptions')}
+                  className="px-4 py-2 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  Quản lý đơn thuốc
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/prescriptions')}
+                  className="px-4 py-2 rounded-xl border border-outline-variant/40 text-sm font-semibold hover:bg-surface-container-high transition-colors"
+                >
+                  Upload đơn thuốc mới
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* Payment Method Section - COD hoac chuyen khoan VietQR */}
           <section>
             <div className="flex items-center gap-3 mb-6">
@@ -770,9 +863,9 @@ export function CheckoutPage() {
               )}
             </button>
 
-            {cart.hasPrescriptionRequired && (
+            {cart.hasPrescriptionRequired && !selectedPrescriptionId && (
               <p className="mt-3 text-xs text-error font-semibold text-center">
-                Đơn hàng có thuốc cần kê đơn. Dược sĩ sẽ liên hệ xác nhận.
+                Vui lòng chọn đơn thuốc đã xác minh để tiếp tục thanh toán.
               </p>
             )}
 
