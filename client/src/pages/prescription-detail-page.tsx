@@ -19,6 +19,7 @@ export function PrescriptionDetailPage() {
     if (!prescriptionId) return
 
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-then-setState voi cancelled flag chong race
     setLoading(true)
 
     Promise.all([

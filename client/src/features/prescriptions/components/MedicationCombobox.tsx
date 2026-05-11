@@ -24,6 +24,7 @@ export function MedicationCombobox({ value, onChange, placeholder, disabled }: P
 
   const debouncedName = useDebouncedValue(value.medicationName, 250)
 
+  /* eslint-disable react-hooks/set-state-in-effect -- fetch-then-setState voi cancelled flag chong race */
   useEffect(() => {
     const q = debouncedName.trim()
     if (q.length < 2) {
@@ -54,6 +55,7 @@ export function MedicationCombobox({ value, onChange, placeholder, disabled }: P
       cancelled = true
     }
   }, [debouncedName, value.medicationId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Click ra ngoai -> dong dropdown.
   useEffect(() => {

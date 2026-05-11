@@ -273,6 +273,7 @@ export function CheckoutPage() {
     if (!cart?.hasPrescriptionRequired) return
 
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-then-setState voi cancelled flag chong race
     setPrescriptionsLoading(true)
 
     prescriptionsApi

@@ -51,6 +51,7 @@ export function PrescriptionsPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadPrescriptions fetch-then-setState voi cancelled flag chong race
     return loadPrescriptions()
   }, [])
 

@@ -11,7 +11,7 @@ export function MedicationReminders() {
 
   const formatDateOnlyShort = (date: string | null) => {
     if (!date) return '';
-    const [y, m, d] = date.split('-');
+    const [, m, d] = date.split('-');
     return `${d}/${m}`;
   };
 

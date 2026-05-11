@@ -152,7 +152,7 @@ export function AdminUsersPage() {
             <select
               value={u.role || 'user'}
               disabled={isSelf}
-              onChange={(e) => setConfirm({ kind: 'role', user: u, nextRole: e.target.value as any })}
+              onChange={(e) => setConfirm({ kind: 'role', user: u, nextRole: e.target.value as 'user' | 'admin' | 'pharmacist' })}
               className="px-2 py-1 text-sm rounded-lg border border-outline-variant/40 bg-surface-container-low outline-none disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
               <option value="user">Người dùng</option>
