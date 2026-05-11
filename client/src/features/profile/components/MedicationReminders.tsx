@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useAppSelector } from '@/hooks/redux';
 
 export function MedicationReminders() {
@@ -13,7 +14,7 @@ export function MedicationReminders() {
     const currentMins = now.getHours() * 60 + now.getMinutes();
     const [hours, mins] = timeStr.split(':').map(Number);
     const reminderMins = hours * 60 + mins;
-    
+
     // Sắp tới nếu thời gian nhắc trong vòng 2 tiếng tới
     return reminderMins > currentMins && reminderMins <= currentMins + 120;
   };
@@ -23,9 +24,14 @@ export function MedicationReminders() {
     const currentMins = now.getHours() * 60 + now.getMinutes();
     const [hours, mins] = timeStr.split(':').map(Number);
     const reminderMins = hours * 60 + mins;
-    
+
     return reminderMins <= currentMins;
   };
+
+  // Tach activeReminders truoc render de check empty/preview cung dung 1 nguon
+  // (tranh case data co toan completed/cancelled nhung khong hien "Chua co" do
+  // length != 0 nhung filter ra rong).
+  const activeReminders = data?.items.filter((r) => r.status === 'active') ?? [];
 
   return (
     <aside className="md:col-span-4 bg-primary-fixed p-8 rounded-xl flex flex-col">
@@ -38,17 +44,17 @@ export function MedicationReminders() {
           <div className="text-center text-on-primary-fixed py-4 animate-pulse">Đang tải...</div>
         )}
 
-        {status === 'success' && (!data || data.items.length === 0) && (
+        {status === 'success' && activeReminders.length === 0 && (
           <div className="text-center text-on-primary-fixed py-4">Chưa có lịch nhắc nhở nào</div>
         )}
 
-        {data?.items.filter((r) => r.status === 'active').map((reminder) => {
+        {activeReminders.slice(0, 3).map((reminder) => {
           const upcoming = isUpcoming(reminder.reminderTime);
           const passed = isPassed(reminder.reminderTime);
 
           return (
-            <div 
-              key={reminder.id} 
+            <div
+              key={reminder.id}
               className={`bg-surface-container-lowest p-4 rounded-lg flex items-center justify-between shadow-sm ${passed ? 'opacity-60' : ''}`}
             >
               <div>
@@ -78,9 +84,12 @@ export function MedicationReminders() {
           );
         })}
       </div>
-      <button className="mt-6 w-full py-3 bg-surface-container-lowest text-primary text-sm font-bold rounded-full border border-primary/10 hover:bg-surface-container-low transition-colors shadow-sm">
+      <Link
+        to="/medication-reminders"
+        className="mt-6 w-full py-3 bg-surface-container-lowest text-primary text-sm font-bold rounded-full border border-primary/10 hover:bg-surface-container-low transition-colors shadow-sm text-center"
+      >
         Quản lý lịch nhắc
-      </button>
+      </Link>
     </aside>
   );
 }

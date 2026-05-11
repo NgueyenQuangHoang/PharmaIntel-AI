@@ -15,6 +15,7 @@ import { AdminCategoriesPage } from '@/pages/admin-categories-page';
 import { AdminMedicationsPage } from '@/pages/admin-medications-page';
 import { AdminOrdersPage } from '@/pages/admin-orders-page';
 import { PrescriptionsPage } from '@/pages/prescriptions-page';
+import { MedicationRemindersPage } from '@/pages/medication-reminders-page';
 import { PrescriptionDetailPage } from '@/pages/prescription-detail-page';
 import { PharmacistDashboardPage } from '@/pages/pharmacist-dashboard-page';
 import { PharmacistPrescriptionDetailPage } from '@/pages/pharmacist-prescription-detail-page';
@@ -71,6 +72,7 @@ export function AppRoutes() {
           <Route path="/orders/:id" element={<OrderDetailPage />} />
           <Route path="/prescriptions" element={<PrescriptionsPage />} />
           <Route path="/prescriptions/:id" element={<PrescriptionDetailPage />} />
+          <Route path="/medication-reminders" element={<MedicationRemindersPage />} />
         </Route>
 
         {/* Admin area - yeu cau role=admin */}

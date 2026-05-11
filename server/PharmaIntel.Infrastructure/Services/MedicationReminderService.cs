@@ -176,6 +176,20 @@ public class MedicationReminderService : IMedicationReminderService
         if (reminder.Status == "cancelled")
             throw new ConflictException("Khong the them log cho lich nhac da huy");
 
+        // Upsert theo (ReminderId, ScheduledAt). User co the bam "Da uong" nham roi
+        // doi sang "Bo qua", hoac double-click - moi truong hop deu chi giu 1 log cho
+        // moi slot gio nhac. Friendly hon hard-error 409.
+        var existing = await _db.MedicationReminderLogs
+            .FirstOrDefaultAsync(l => l.ReminderId == reminderId && l.ScheduledAt == req.ScheduledAt, ct);
+
+        if (existing is not null)
+        {
+            existing.Status = req.Status;
+            existing.CompletedAt = req.Status == "missed" ? null : DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            return ToLogDto(existing);
+        }
+
         var log = new MedicationReminderLog
         {
             ReminderId = reminderId,
