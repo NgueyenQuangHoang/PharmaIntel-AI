@@ -30,5 +30,15 @@ export type AuthResponse = {
   accessToken: string
   tokenType: string
   expiresIn: number
+  refreshToken: string
+  refreshTokenExpiresAt: string
   user: UserInfo
+}
+
+export type RefreshRequest = {
+  refreshToken: string
+}
+
+export type LogoutRequest = {
+  refreshToken: string
 }

@@ -1,13 +1,15 @@
 // =============================================================================
 // Controller: AuthController
-// Chuc nang: Endpoint xac thuc - register, login, me. Controller "thin":
+// Chuc nang: Endpoint xac thuc - register, login, refresh, logout, me. Controller "thin":
 //   - Validation: tu dong qua ValidationFilter (FluentValidation)
 //   - Exception: tu dong qua GlobalExceptionHandler -> ProblemDetails
 //   - Khong co try/catch trong controller
 // Endpoints:
 //   POST /api/auth/register
 //   POST /api/auth/login
-//   GET  /api/auth/me  (yeu cau JWT)
+//   POST /api/auth/refresh  (khong yeu cau JWT - access token co the het han)
+//   POST /api/auth/logout   (yeu cau JWT - revoke refresh token)
+//   GET  /api/auth/me       (yeu cau JWT)
 // =============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,15 +34,30 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request, CancellationToken ct)
     {
-        var result = await _auth.RegisterAsync(request, ct);
+        var result = await _auth.RegisterAsync(request, ClientIp(), UserAgent(), ct);
         return Ok(result);
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
-        var result = await _auth.LoginAsync(request, ct);
+        var result = await _auth.LoginAsync(request, ClientIp(), UserAgent(), ct);
         return Ok(result);
+    }
+
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshRequest request, CancellationToken ct)
+    {
+        var result = await _auth.RefreshAsync(request, ClientIp(), UserAgent(), ct);
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken ct)
+    {
+        await _auth.LogoutAsync(request, ClientIp(), ct);
+        return NoContent();
     }
 
     [Authorize]
@@ -52,4 +69,7 @@ public class AuthController : ControllerBase
                    ?? throw new NotFoundException("nguoi dung", userId);
         return Ok(info);
     }
+
+    private string? ClientIp() => HttpContext.Connection.RemoteIpAddress?.ToString();
+    private string? UserAgent() => HttpContext.Request.Headers.UserAgent.ToString();
 }

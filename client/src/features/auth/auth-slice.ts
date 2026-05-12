@@ -4,7 +4,14 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import axios from 'axios'
 import { authApi } from './auth-api'
-import { clearToken, getToken, setToken } from './token-storage'
+import {
+  clearRefreshToken,
+  clearToken,
+  getRefreshToken,
+  getToken,
+  setRefreshToken,
+  setToken,
+} from './token-storage'
 import type { AuthResponse, LoginRequest, RegisterRequest, UserInfo } from './types'
 
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'error'
@@ -64,12 +71,29 @@ export const fetchMeThunk = createAsyncThunk<UserInfo, void, { rejectValue: stri
   },
 )
 
+// Logout: revoke refresh token o BE (best-effort) -> clear local state.
+export const logoutThunk = createAsyncThunk<void, void>(
+  'auth/logoutThunk',
+  async (_, { dispatch }) => {
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      try {
+        await authApi.logout(refreshToken)
+      } catch {
+        /* ignore - BE co the da revoke hoac network fail; van clear local */
+      }
+    }
+    dispatch(logout())
+  },
+)
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
     logout(state) {
       clearToken()
+      clearRefreshToken()
       state.token = null
       state.user = null
       state.status = 'idle'
@@ -82,6 +106,7 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     const handleAuthSuccess = (state: AuthState, action: PayloadAction<AuthResponse>) => {
       setToken(action.payload.accessToken)
+      setRefreshToken(action.payload.refreshToken)
       state.token = action.payload.accessToken
       state.user = action.payload.user
       state.status = 'authenticated'

@@ -180,6 +180,7 @@ curl http://localhost:5292/api/db-check
 >
 > **Cach gui token**: them header `Authorization: Bearer <accessToken>`.
 > **Het han**: 60 phut (cau hinh trong `appsettings.json` -> `Jwt:ExpireMinutes`).
+> **Refresh token**: tra ve cung response cua `/register` va `/login`. Default 30 ngay (`Jwt:RefreshExpireDays`). Single-use — moi lan goi `/auth/refresh` se sinh refresh token moi va revoke token cu. Neu dung lai refresh token da revoked -> theft signal, BE revoke toan bo token cua user.
 
 ---
 
@@ -224,6 +225,8 @@ curl -X POST http://localhost:5292/api/auth/register \
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",
   "tokenType": "Bearer",
   "expiresIn": 3600,
+  "refreshToken": "8XmqL...",
+  "refreshTokenExpiresAt": "2026-06-11T11:29:52Z",
   "user": {
     "id": 1,
     "fullName": "Nguyen Van A",
@@ -332,6 +335,64 @@ curl http://localhost:5292/api/auth/me -H "Authorization: Bearer $TOKEN"
   "traceId": "..."
 }
 ```
+
+---
+
+### 2.4 `POST /api/auth/refresh`
+
+Gia han access token bang refresh token. **Khong yeu cau Bearer** (access co the da het han). Single-use: moi lan goi sinh refresh token MOI va revoke token cu. Client phai luu lai `refreshToken` moi tu response.
+
+**Request body**
+
+```json
+{ "refreshToken": "8XmqL..." }
+```
+
+**Curl**
+
+```bash
+curl -X POST http://localhost:5292/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"8XmqL..."}'
+```
+
+**Response 200** — shape giong response login (accessToken moi + refreshToken moi).
+
+**Response 401** — refresh token sai / het han / da revoked. Neu refresh token bi dung lai sau khi da rotate -> BE coi la theft signal va revoke toan bo active token cua user.
+
+```json
+{
+  "title": "Chua xac thuc",
+  "status": 401,
+  "detail": "Refresh token khong hop le",
+  "instance": "/api/auth/refresh",
+  "errorType": "unauthorized",
+  "traceId": "..."
+}
+```
+
+---
+
+### 2.5 `POST /api/auth/logout`
+
+Revoke refresh token o BE. **Yeu cau Bearer** (access token con han). Idempotent — neu refresh token khong ton tai hoac da revoked thi van tra 204.
+
+**Request body**
+
+```json
+{ "refreshToken": "8XmqL..." }
+```
+
+**Curl**
+
+```bash
+curl -X POST http://localhost:5292/api/auth/logout \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"8XmqL..."}'
+```
+
+**Response 204** — luon thanh cong. Sau khi goi, client xoa ca access lan refresh trong localStorage va redirect /login.
 
 ---
 

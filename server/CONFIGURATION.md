@@ -24,7 +24,7 @@ Gia tri uu tien cao se ghi de gia tri uu tien thap.
 |---|---|---|
 | `ConnectionStrings:DefaultConnection` | SQL Server connection string | Co (dev co default LocalDB trong `appsettings.Development.json`) |
 | `Jwt:Key` | Khoa ky JWT, toi thieu 32 ky tu ngau nhien | Co |
-| `Jwt:Issuer` / `Jwt:Audience` / `Jwt:ExpireMinutes` | Thong tin token | Da co default |
+| `Jwt:Issuer` / `Jwt:Audience` / `Jwt:ExpireMinutes` / `Jwt:RefreshExpireDays` | Thong tin token (refresh default 30 ngay) | Da co default |
 | `Gemini:ApiKey` | Google Gemini API key | Co (khi `Gemini:Enabled=true`) |
 | `Gemini:Model` / `Gemini:BaseUrl` / `Gemini:TimeoutSeconds` | Cau hinh Gemini | Da co default |
 | `Cors:AllowedOrigins` | Mang origin frontend duoc phep | Da co default localhost |
@@ -66,6 +66,7 @@ Set environment variables tren may chu (luu y `:` trong key duoc thay bang `__` 
 ConnectionStrings__DefaultConnection="Server=...;Database=PharmaIntelDB;User Id=...;Password=...;"
 Jwt__Key="<chuoi-ngau-nhien-toi-thieu-32-ky-tu>"
 Jwt__ExpireMinutes=60
+Jwt__RefreshExpireDays=30
 Gemini__ApiKey="AIza..."
 Cors__AllowedOrigins__0="https://app.pharmaintel.example.com"
 ASPNETCORE_ENVIRONMENT=Production

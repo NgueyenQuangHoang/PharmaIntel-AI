@@ -6,7 +6,7 @@ import { useAppDispatch, useAppSelector } from '@/hooks/redux'
 import {
   fetchMeThunk,
   loginThunk,
-  logout as logoutAction,
+  logoutThunk,
   registerThunk,
 } from '@/features/auth/auth-slice'
 import type { LoginRequest, RegisterRequest } from '@/features/auth/types'
@@ -24,7 +24,7 @@ export function useAuth() {
     [dispatch],
   )
   const fetchMe = useCallback(() => dispatch(fetchMeThunk()).unwrap(), [dispatch])
-  const logout = useCallback(() => dispatch(logoutAction()), [dispatch])
+  const logout = useCallback(() => dispatch(logoutThunk()).unwrap(), [dispatch])
 
   return {
     token,

@@ -142,6 +142,18 @@ public class OrderService : IOrderService
 
         var total = subtotal + ShippingFeeFlat;
 
+        // 4b. Claim cart items: xoa ngay trong transaction de chong duplicate checkout
+        // (cung user mo 2 tab cung bam checkout). DELETE atomic lock row -> tab thu 2
+        // se thay 0 row anh huong va throw, rollback toan bo. Neu transaction nay fail
+        // o buoc sau (stock, prescription, save order), delete cung rollback -> cart hoan nguyen.
+        var claimedCount = await _db.CartItems
+            .Where(c => c.UserId == userId && checkoutCartItemIds.Contains(c.Id))
+            .ExecuteDeleteAsync(ct);
+
+        if (claimedCount != checkoutCartItemIds.Count)
+            throw new ConflictException(
+                "Gio hang da thay doi hoac da duoc checkout o tab khac. Vui long tai lai gio hang.");
+
         // 5. Tao Order voi snapshot (OrderCode se gan trong retry loop o buoc 8)
         var fullAddress = string.IsNullOrWhiteSpace(address.District)
             ? $"{address.StreetAddress}, {address.Ward}, {address.Province}"
@@ -208,12 +220,12 @@ public class OrderService : IOrderService
             });
         }
 
-        // 7b. Mark prescription items dispensed atomic.
-        // Dieu kien IsDispensed = false dam bao 2 request song song dung 1 don
-        // chi 1 ben thanh cong (ben kia se rollback toan bo transaction).
-        if (prescription is not null && prescriptionItemMap.Count > 0)
+        // 7b. Mark TOAN BO prescription items cua don nay = dispensed (single-use whole prescription).
+        // Mark theo prescription.Items thay vi prescriptionItemMap.Values, dam bao nhat quan
+        // voi RestorePrescriptionItemsAsync (restore theo PrescriptionId).
+        if (prescription is not null && prescription.Items.Count > 0)
         {
-            var rxItemIds = prescriptionItemMap.Values.ToList();
+            var rxItemIds = prescription.Items.Select(pi => pi.Id).ToList();
             var affectedRx = await _db.PrescriptionItems
                 .Where(pi => rxItemIds.Contains(pi.Id) && !pi.IsDispensed)
                 .ExecuteUpdateAsync(s => s.SetProperty(pi => pi.IsDispensed, true), ct);
@@ -243,14 +255,11 @@ public class OrderService : IOrderService
             }
         }
 
-        // 9. Clear cart — chi xoa nhung item da duoc tinh vao don nay.
-        await _db.CartItems
-            .Where(c => c.UserId == userId && checkoutCartItemIds.Contains(c.Id))
-            .ExecuteDeleteAsync(ct);
+        // Cart da duoc claim/xoa o buoc 4b -> khong can clear o day nua.
 
         await tx.CommitAsync(ct);
 
-        // 10. Return DTO
+        // 9. Return DTO
         return await GetByIdAsync(userId, order.Id, ct);
     }
 
@@ -560,17 +569,14 @@ public class OrderService : IOrderService
 
     private async Task RestorePrescriptionItemsAsync(Order order, CancellationToken ct)
     {
-        // Restore single-use flag cho cac prescription_items lien quan toi order bi cancel.
-        // Chi goi khi cancel tu pre-delivered states -> don thuoc chua thuc su duoc cap thuoc.
-        var rxItemIds = order.Items
-            .Where(i => i.PrescriptionItemId.HasValue)
-            .Select(i => i.PrescriptionItemId!.Value)
-            .Distinct()
-            .ToList();
-        if (rxItemIds.Count == 0) return;
+        // Restore TOAN BO prescription items thuoc don thuoc cua order bi cancel.
+        // Nhat quan voi buoc 7b (mark theo prescription.Items toan bo) — neu chi restore
+        // qua OrderItem.PrescriptionItemId thi cac item khong nam trong cart se ket vinh vien.
+        if (!order.PrescriptionId.HasValue) return;
 
+        var prescriptionId = order.PrescriptionId.Value;
         await _db.PrescriptionItems
-            .Where(pi => rxItemIds.Contains(pi.Id))
+            .Where(pi => pi.PrescriptionId == prescriptionId)
             .ExecuteUpdateAsync(s => s.SetProperty(pi => pi.IsDispensed, false), ct);
     }
 }

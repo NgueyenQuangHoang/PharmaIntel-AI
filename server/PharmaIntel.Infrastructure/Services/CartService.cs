@@ -94,32 +94,49 @@ public class CartService : ICartService
             catch (DbUpdateException ex) when (SqlExceptionHelpers.IsUniqueViolation(ex))
             {
                 // Race: tab khac vua insert item cho cung (userId, medicationId).
-                // Detach entity loi, load lai row hien tai va cong don quantity.
+                // Detach entity loi, cong don quantity bang atomic update.
                 _db.Entry(newItem).State = EntityState.Detached;
-
-                var conflicting = await _db.CartItems
-                    .FirstAsync(c => c.UserId == userId && c.MedicationId == req.MedicationId, ct);
-
-                var mergedQty = conflicting.Quantity + req.Quantity;
-                if (mergedQty > med.StockQuantity)
-                    throw new ConflictException(
-                        $"So luong vuot ton kho. Hien co {med.StockQuantity}, da co {conflicting.Quantity} trong gio");
-                if (mergedQty > 999)
-                    throw new ConflictException("So luong toi da 999/san pham");
-
-                conflicting.Quantity = mergedQty;
-                conflicting.AddedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync(ct);
+                await IncrementCartQuantityAtomicAsync(userId, req.MedicationId, req.Quantity, med.StockQuantity, ct);
             }
         }
         else
         {
-            existing.Quantity = newQty;
-            existing.AddedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
+            // Cong don quantity bang atomic UPDATE de tranh lost-update khi 2 tab cung tang.
+            await IncrementCartQuantityAtomicAsync(userId, req.MedicationId, req.Quantity, med.StockQuantity, ct);
         }
 
         return await GetAsync(userId, ct);
+    }
+
+    // Cong don quantity cho cart item theo (userId, medicationId) bang 1 cau UPDATE atomic.
+    // Guard `quantity + add <= maxStock` va `<= 999` nam trong WHERE -> chong lost-update
+    // va chong vuot ton kho khi 2 tab cung add. Neu affected = 0, query lai de tra error message
+    // chinh xac (vuot stock, vuot 999, hoac san pham vua bi xoa).
+    private async Task IncrementCartQuantityAtomicAsync(
+        long userId, long medicationId, int add, int maxStock, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var affected = await _db.CartItems
+            .Where(c => c.UserId == userId && c.MedicationId == medicationId
+                && c.Quantity + add <= maxStock
+                && c.Quantity + add <= 999)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.Quantity, c => c.Quantity + add)
+                .SetProperty(c => c.AddedAt, now), ct);
+
+        if (affected == 1) return;
+
+        var currentQty = await _db.CartItems
+            .Where(c => c.UserId == userId && c.MedicationId == medicationId)
+            .Select(c => (int?)c.Quantity)
+            .FirstOrDefaultAsync(ct);
+
+        if (currentQty is null)
+            throw new ConflictException("San pham vua bi xoa khoi gio - vui long lam moi gio hang");
+        if (currentQty.Value + add > 999)
+            throw new ConflictException("So luong toi da 999/san pham");
+        throw new ConflictException(
+            $"So luong vuot ton kho. Hien co {maxStock}, da co {currentQty.Value} trong gio");
     }
 
 

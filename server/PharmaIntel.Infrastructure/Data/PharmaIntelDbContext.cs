@@ -19,6 +19,7 @@ public class PharmaIntelDbContext : DbContext
     public DbSet<UserSetting> UserSettings => Set<UserSetting>();
     public DbSet<UserConsent> UserConsents => Set<UserConsent>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     // === Nhan su y te ===
     public DbSet<Doctor> Doctors => Set<Doctor>();

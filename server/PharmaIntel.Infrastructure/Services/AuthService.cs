@@ -1,6 +1,7 @@
 // =============================================================================
 // Service: AuthService
-// Chuc nang: Nghiep vu xac thuc - register (hash password), login (verify), me.
+// Chuc nang: Nghiep vu xac thuc - register/login/refresh/logout/me.
+// Refresh token theo single-use rotation (xem RefreshTokenService).
 // Su dung PasswordHasher<User> chinh thuc cua ASP.NET Core Identity.
 // =============================================================================
 using Microsoft.AspNetCore.Identity;
@@ -18,18 +19,21 @@ public class AuthService : IAuthService
     private readonly PharmaIntelDbContext _db;
     private readonly IPasswordHasher<User> _hasher;
     private readonly IJwtTokenService _jwt;
+    private readonly IRefreshTokenService _refreshTokens;
 
     public AuthService(
         PharmaIntelDbContext db,
         IPasswordHasher<User> hasher,
-        IJwtTokenService jwt)
+        IJwtTokenService jwt,
+        IRefreshTokenService refreshTokens)
     {
         _db = db;
         _hasher = hasher;
         _jwt = jwt;
+        _refreshTokens = refreshTokens;
     }
 
-    public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
+    public async Task<AuthResponse> RegisterAsync(RegisterRequest request, string? ip, string? userAgent, CancellationToken ct = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
@@ -52,10 +56,10 @@ public class AuthService : IAuthService
         _db.Users.Add(user);
         await _db.SaveChangesAsync(ct);
 
-        return BuildAuthResponse(user);
+        return await BuildAuthResponseAsync(user, ip, userAgent, ct);
     }
 
-    public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
+    public async Task<AuthResponse> LoginAsync(LoginRequest request, string? ip, string? userAgent, CancellationToken ct = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
@@ -77,8 +81,35 @@ public class AuthService : IAuthService
             await _db.SaveChangesAsync(ct);
         }
 
-        return BuildAuthResponse(user);
+        return await BuildAuthResponseAsync(user, ip, userAgent, ct);
     }
+
+    public async Task<AuthResponse> RefreshAsync(RefreshRequest request, string? ip, string? userAgent, CancellationToken ct = default)
+    {
+        var (newRefresh, refreshExpiresAt, userId) =
+            await _refreshTokens.RotateAsync(request.RefreshToken, ip, userAgent, ct);
+
+        var user = await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new UnauthorizedAppException("Tai khoan khong ton tai");
+
+        if (!user.IsActive)
+            throw new UnauthorizedAppException("Tai khoan da bi vo hieu hoa");
+
+        var (accessToken, expiresIn) = _jwt.GenerateAccessToken(user);
+        return new AuthResponse
+        {
+            AccessToken = accessToken,
+            TokenType = "Bearer",
+            ExpiresIn = expiresIn,
+            RefreshToken = newRefresh,
+            RefreshTokenExpiresAt = refreshExpiresAt,
+            User = MapUserInfo(user)
+        };
+    }
+
+    public Task LogoutAsync(LogoutRequest request, string? ip, CancellationToken ct = default)
+        => _refreshTokens.RevokeAsync(request.RefreshToken, ip, ct);
 
     public async Task<UserInfo?> GetMeAsync(long userId, CancellationToken ct = default)
     {
@@ -89,14 +120,17 @@ public class AuthService : IAuthService
         return user is null ? null : MapUserInfo(user);
     }
 
-    private AuthResponse BuildAuthResponse(User user)
+    private async Task<AuthResponse> BuildAuthResponseAsync(User user, string? ip, string? userAgent, CancellationToken ct)
     {
-        var (token, expiresIn) = _jwt.GenerateAccessToken(user);
+        var (accessToken, expiresIn) = _jwt.GenerateAccessToken(user);
+        var (refreshToken, refreshExpiresAt) = await _refreshTokens.IssueAsync(user.Id, ip, userAgent, ct);
         return new AuthResponse
         {
-            AccessToken = token,
+            AccessToken = accessToken,
             TokenType = "Bearer",
             ExpiresIn = expiresIn,
+            RefreshToken = refreshToken,
+            RefreshTokenExpiresAt = refreshExpiresAt,
             User = MapUserInfo(user)
         };
     }

@@ -39,6 +39,7 @@ public class User
     public ICollection<PharmacistChatSession> ChatSessions { get; set; } = new List<PharmacistChatSession>();
     public ICollection<AiInsight> AiInsights { get; set; } = new List<AiInsight>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
     // 1:1 nullable - chi user co role 'pharmacist' moi co PharmacistProfile.
     public Pharmacist? PharmacistProfile { get; set; }
