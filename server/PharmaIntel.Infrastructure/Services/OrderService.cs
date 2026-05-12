@@ -37,7 +37,9 @@ public class OrderService : IOrderService
     {
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
-        // 1. Load cart kem medication tracked (de update stock)
+        // 1. Load cart kem medication tracked (de update stock).
+        // Snapshot lai Id de buoc clear cart chi xoa dung nhung item da checkout —
+        // tranh xoa nham item user vua them o tab khac trong khi checkout dang chay.
         var cartItems = await _db.CartItems
             .Include(c => c.Medication)
             .Where(c => c.UserId == userId)
@@ -45,6 +47,8 @@ public class OrderService : IOrderService
 
         if (cartItems.Count == 0)
             throw new ConflictException("Gio hang trong - khong the checkout");
+
+        var checkoutCartItemIds = cartItems.Select(c => c.Id).ToList();
 
         // 2. Validate address
         var address = await _db.Addresses.FirstOrDefaultAsync(a => a.Id == req.AddressId, ct)
@@ -100,6 +104,11 @@ public class OrderService : IOrderService
                 throw new ConflictException(
                     $"Don thuoc khong con hieu luc (trang thai: '{prescription.Status}')");
 
+            // Single-use: neu bat ky item nao trong don da dispense -> don da duoc dung roi.
+            if (prescription.Items.Any(pi => pi.IsDispensed))
+                throw new ConflictException(
+                    "Don thuoc nay da duoc su dung de mua thuoc - vui long lien he duoc si neu can mua lai");
+
             // Build map cua nhung medication ke don co trong prescription
             foreach (var pi in prescription.Items)
             {
@@ -133,21 +142,7 @@ public class OrderService : IOrderService
 
         var total = subtotal + ShippingFeeFlat;
 
-        // 5. Sinh OrderCode duy nhat
-        string orderCode = string.Empty;
-        for (int attempt = 0; attempt < 5; attempt++)
-        {
-            var candidate = OrderCodeGenerator.Generate();
-            if (!await _db.Orders.AnyAsync(o => o.OrderCode == candidate, ct))
-            {
-                orderCode = candidate;
-                break;
-            }
-        }
-        if (string.IsNullOrEmpty(orderCode))
-            throw new ConflictException("Khong sinh duoc ma don sau 5 lan thu - vui long thu lai");
-
-        // 6. Tao Order voi snapshot
+        // 5. Tao Order voi snapshot (OrderCode se gan trong retry loop o buoc 8)
         var fullAddress = string.IsNullOrWhiteSpace(address.District)
             ? $"{address.StreetAddress}, {address.Ward}, {address.Province}"
             : $"{address.StreetAddress}, {address.Ward}, {address.District}, {address.Province}";
@@ -159,7 +154,7 @@ public class OrderService : IOrderService
             AddressId = address.Id,
             PaymentMethodId = pm.Id,
             PrescriptionId = prescription?.Id,
-            OrderCode = orderCode,
+            OrderCode = string.Empty, // overwritten in save-retry below
             Subtotal = subtotal,
             ShippingFee = ShippingFeeFlat,
             Total = total,
@@ -175,11 +170,26 @@ public class OrderService : IOrderService
 
         _db.Orders.Add(order);
 
-        // 7. Tao OrderItems + tru ton kho
+        // 7. Tao OrderItems + tru ton kho atomic
+        // Dieu kien StockQuantity >= ci.Quantity trong cau UPDATE dam bao chi 1 request
+        // thanh cong khi nhieu user cung mua san pham cuoi cung (race condition oversell).
         foreach (var ci in cartItems)
         {
             var m = ci.Medication;
             var unitFinal = Math.Round(m.Price * (1 - m.DiscountPercent / 100m), 2);
+
+            var qty = ci.Quantity;
+            var now = DateTime.UtcNow;
+            var affected = await _db.Medications
+                .Where(x => x.Id == m.Id && x.IsActive && x.StockQuantity >= qty)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.StockQuantity, x => x.StockQuantity - qty)
+                    .SetProperty(x => x.UpdatedAt, now),
+                    ct);
+
+            if (affected != 1)
+                throw new ConflictException(
+                    $"Thuoc '{m.Name}' khong du ton kho hoac da ngung kinh doanh. Vui long cap nhat gio hang.");
 
             // Gan PrescriptionItemId neu thuoc nay co trong prescription (FK SetNull cho phep null)
             long? prescriptionItemId = null;
@@ -196,19 +206,51 @@ public class OrderService : IOrderService
                 DiscountPercent = m.DiscountPercent,
                 TotalPrice = Math.Round(unitFinal * ci.Quantity, 2)
             });
-
-            m.StockQuantity -= ci.Quantity;
-            m.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _db.SaveChangesAsync(ct);
+        // 7b. Mark prescription items dispensed atomic.
+        // Dieu kien IsDispensed = false dam bao 2 request song song dung 1 don
+        // chi 1 ben thanh cong (ben kia se rollback toan bo transaction).
+        if (prescription is not null && prescriptionItemMap.Count > 0)
+        {
+            var rxItemIds = prescriptionItemMap.Values.ToList();
+            var affectedRx = await _db.PrescriptionItems
+                .Where(pi => rxItemIds.Contains(pi.Id) && !pi.IsDispensed)
+                .ExecuteUpdateAsync(s => s.SetProperty(pi => pi.IsDispensed, true), ct);
 
-        // 8. Clear cart
-        await _db.CartItems.Where(c => c.UserId == userId).ExecuteDeleteAsync(ct);
+            if (affectedRx != rxItemIds.Count)
+                throw new ConflictException(
+                    "Don thuoc vua duoc su dung boi request khac - vui long lam moi va kiem tra lai");
+        }
+
+        // 8. Save order voi retry tren OrderCode collision.
+        // OrderCodeGenerator dung 6 ky tu random/ngay -> xac suat trung cuc thap,
+        // nhung neu dung UQ_orders_order_code thi sinh lai code va retry toi da 3 lan.
+        const int MaxOrderCodeRetries = 3;
+        for (int attempt = 0; attempt < MaxOrderCodeRetries; attempt++)
+        {
+            order.OrderCode = OrderCodeGenerator.Generate();
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                break;
+            }
+            catch (DbUpdateException ex) when (
+                SqlExceptionHelpers.IsUniqueViolation(ex, "UQ_orders_order_code")
+                && attempt < MaxOrderCodeRetries - 1)
+            {
+                // EF giu entity Added state sau DbUpdateException -> sinh code moi va thu lai.
+            }
+        }
+
+        // 9. Clear cart — chi xoa nhung item da duoc tinh vao don nay.
+        await _db.CartItems
+            .Where(c => c.UserId == userId && checkoutCartItemIds.Contains(c.Id))
+            .ExecuteDeleteAsync(ct);
 
         await tx.CommitAsync(ct);
 
-        // 9. Return DTO
+        // 10. Return DTO
         return await GetByIdAsync(userId, order.Id, ct);
     }
 
@@ -363,7 +405,7 @@ public class OrderService : IOrderService
 
     public async Task<OrderDto> CancelMyOrderAsync(long userId, long orderId, CancellationToken ct = default)
     {
-        var order = await _db.Orders
+        var order = await _db.Orders.AsNoTracking()
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId, ct)
             ?? throw new NotFoundException("don hang", orderId);
@@ -377,12 +419,21 @@ public class OrderService : IOrderService
 
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
-        order.Status = "cancelled";
-        if (order.PaymentStatus == "paid") order.PaymentStatus = "refunded";
-        order.UpdatedAt = DateTime.UtcNow;
+        // Chuyen trang thai atomic: chi 1 request thanh cong khi 2 tab cung bam cancel.
+        var now = DateTime.UtcNow;
+        var affected = await _db.Orders
+            .Where(o => o.Id == orderId && o.UserId == userId && o.Status == "pending")
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(o => o.Status, "cancelled")
+                .SetProperty(o => o.PaymentStatus, o => o.PaymentStatus == "paid" ? "refunded" : o.PaymentStatus)
+                .SetProperty(o => o.UpdatedAt, now),
+                ct);
+
+        if (affected != 1)
+            throw new ConflictException("Don hang khong con o trang thai 'pending' - co the da bi cancel boi request khac");
 
         await RestoreStockAsync(order, ct);
-        await _db.SaveChangesAsync(ct);
+        await RestorePrescriptionItemsAsync(order, ct);
         await tx.CommitAsync(ct);
 
         return await GetByIdAsync(userId, orderId, ct);
@@ -390,27 +441,44 @@ public class OrderService : IOrderService
 
     public async Task<OrderDto> AdminUpdateStatusAsync(long orderId, UpdateOrderStatusRequest req, CancellationToken ct = default)
     {
-        var order = await _db.Orders
+        var order = await _db.Orders.AsNoTracking()
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId, ct)
             ?? throw new NotFoundException("don hang", orderId);
 
         var newStatus = req.Status;
-        ValidateAdminTransition(order.Status, newStatus);
+        var currentStatus = order.Status;
+        ValidateAdminTransition(currentStatus, newStatus);
 
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
-        var wasCancelled = newStatus == "cancelled" && order.Status != "cancelled";
+        var wasCancelled = newStatus == "cancelled" && currentStatus != "cancelled";
+        var paymentTypeSnapshot = order.PaymentTypeSnapshot;
+        var now = DateTime.UtcNow;
 
-        order.Status = newStatus;
-        if (newStatus == "cancelled" && order.PaymentStatus == "paid") order.PaymentStatus = "refunded";
-        if (newStatus == "delivered" && order.PaymentTypeSnapshot == "cod") order.PaymentStatus = "paid";
-        order.UpdatedAt = DateTime.UtcNow;
+        // Atomic transition: chi thanh cong khi status van la `currentStatus` —
+        // chong 2 admin cung chuyen trang thai don gay double-restore stock.
+        var affected = await _db.Orders
+            .Where(o => o.Id == orderId && o.Status == currentStatus)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(o => o.Status, newStatus)
+                .SetProperty(o => o.PaymentStatus, o =>
+                    (newStatus == "cancelled" && o.PaymentStatus == "paid") ? "refunded" :
+                    (newStatus == "delivered" && paymentTypeSnapshot == "cod") ? "paid" :
+                    o.PaymentStatus)
+                .SetProperty(o => o.UpdatedAt, now),
+                ct);
+
+        if (affected != 1)
+            throw new ConflictException(
+                $"Trang thai don da thay doi - khong the chuyen tu '{currentStatus}' sang '{newStatus}'");
 
         if (wasCancelled)
+        {
             await RestoreStockAsync(order, ct);
+            await RestorePrescriptionItemsAsync(order, ct);
+        }
 
-        await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
         return await GetByIdAsync(order.UserId, orderId, ct);
@@ -473,19 +541,36 @@ public class OrderService : IOrderService
 
     private async Task RestoreStockAsync(Order order, CancellationToken ct)
     {
-        var medIds = order.Items.Where(i => i.MedicationId.HasValue)
-            .Select(i => i.MedicationId!.Value).Distinct().ToList();
-        if (medIds.Count == 0) return;
-
-        var meds = await _db.Medications.Where(m => medIds.Contains(m.Id)).ToListAsync(ct);
-        var medMap = meds.ToDictionary(m => m.Id);
+        // Cong lai ton kho atomic cho tung item. Goi sau khi status order da chuyen
+        // sang `cancelled` thanh cong qua atomic UPDATE — dam bao chi chay 1 lan.
+        var now = DateTime.UtcNow;
         foreach (var item in order.Items)
         {
-            if (item.MedicationId.HasValue && medMap.TryGetValue(item.MedicationId.Value, out var m))
-            {
-                m.StockQuantity += item.Quantity;
-                m.UpdatedAt = DateTime.UtcNow;
-            }
+            if (!item.MedicationId.HasValue) continue;
+            var medId = item.MedicationId.Value;
+            var qty = item.Quantity;
+            await _db.Medications
+                .Where(m => m.Id == medId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(m => m.StockQuantity, m => m.StockQuantity + qty)
+                    .SetProperty(m => m.UpdatedAt, now),
+                    ct);
         }
+    }
+
+    private async Task RestorePrescriptionItemsAsync(Order order, CancellationToken ct)
+    {
+        // Restore single-use flag cho cac prescription_items lien quan toi order bi cancel.
+        // Chi goi khi cancel tu pre-delivered states -> don thuoc chua thuc su duoc cap thuoc.
+        var rxItemIds = order.Items
+            .Where(i => i.PrescriptionItemId.HasValue)
+            .Select(i => i.PrescriptionItemId!.Value)
+            .Distinct()
+            .ToList();
+        if (rxItemIds.Count == 0) return;
+
+        await _db.PrescriptionItems
+            .Where(pi => rxItemIds.Contains(pi.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(pi => pi.IsDispensed, false), ct);
     }
 }

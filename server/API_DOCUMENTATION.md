@@ -875,6 +875,7 @@ curl -X POST http://localhost:5292/api/orders/checkout \
 - `Status` la `draft` hoac `active` -> 409 neu da completed/cancelled.
 - Moi thuoc ke don trong gio phai co mat trong `prescription.Items` (theo `MedicationId`).
 - Order.PrescriptionId va OrderItem.PrescriptionItemId duoc set tuong ung de truy vet.
+- **Single-use**: prescription chi duoc dung de checkout **1 lan**. Sau khi checkout thanh cong, cac `prescription_items.is_dispensed` duoc set `true`. Lan checkout tiep theo dung lai don do se nhan 409. Khi don hang bi cancel o trang thai pre-delivered (pending/confirmed/processing/shipping), flag duoc restore ve `false` -> co the dung lai don.
 
 **Response 201**
 
@@ -910,7 +911,7 @@ curl -X POST http://localhost:5292/api/orders/checkout \
 | 401    | thieu token                                                        |
 | 403    | address/payment method/don thuoc khong thuoc user                  |
 | 404    | address/payment method/don thuoc khong ton tai                     |
-| 409    | cart trong, medication ngung kinh doanh, het hang, thuoc ke don thieu prescriptionId, don thuoc chua verified hoac da completed, thuoc khong khop don |
+| 409    | cart trong, medication ngung kinh doanh, het hang (atomic stock guard), thuoc ke don thieu prescriptionId, don thuoc chua verified hoac da completed, thuoc khong khop don, **don thuoc da duoc su dung** (single-use), **don thuoc vua duoc su dung boi request khac** (race) |
 
 ---
 

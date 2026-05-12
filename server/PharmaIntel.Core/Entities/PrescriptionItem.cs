@@ -16,6 +16,10 @@ public class PrescriptionItem
     public string? Frequency { get; set; }
     public string? Duration { get; set; }
 
+    // Single-use flag: true sau khi don thuoc duoc dung de checkout thanh cong.
+    // Restore ve false khi don hang lien quan bi cancel truoc khi delivered.
+    public bool IsDispensed { get; set; }
+
     public Prescription Prescription { get; set; } = null!;
     public Medication? Medication { get; set; }
     public ICollection<MedicationReminder> Reminders { get; set; } = new List<MedicationReminder>();

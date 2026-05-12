@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 import { fetchCatalogThunk } from '@/features/medications/medications-slice';
 import { addToCartThunk } from '@/features/cart/cart-slice';
 import { formatVnd } from '@/utils/format';
+import { showCartErrorToast } from '@/utils/cart-toast';
 import type { MedicationListItem } from '@/features/medications/types';
 
 interface ProductListProps {
@@ -116,8 +117,8 @@ export function ProductList({ selectedCategoryId, searchQuery, sortOption, page,
     try {
       await dispatch(addToCartThunk({ medicationId, quantity: 1 })).unwrap();
       onOpenCart?.();
-    } catch {
-      /* error in slice */
+    } catch (err) {
+      showCartErrorToast(err, 'Không thêm được vào giỏ');
     }
   };
 

@@ -368,6 +368,8 @@ Danh sách thuốc trong đơn.
 
 Lưu `medication_name` dạng snapshot để giữ lịch sử nếu thuốc trong master data bị đổi tên.
 
+`is_dispensed BIT NOT NULL DEFAULT 0` — single-use flag. Set `true` khi prescription_item được dùng để checkout thành công (atomic UPDATE trong `OrderService.CheckoutAsync` với điều kiện `is_dispensed = false`). Restore về `false` khi đơn hàng liên quan bị cancel ở các trạng thái pre-delivered (pending/confirmed/processing/shipping). Index hỗ trợ: `IX_prescription_items_prescription_dispensed (prescription_id, is_dispensed)`.
+
 #### `prescription_documents`
 
 File đơn thuốc upload.

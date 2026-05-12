@@ -19,6 +19,10 @@ public class PrescriptionItemConfiguration : IEntityTypeConfiguration<Prescripti
         builder.Property(e => e.Dosage).HasMaxLength(100);
         builder.Property(e => e.Frequency).HasMaxLength(100);
         builder.Property(e => e.Duration).HasMaxLength(100);
+        builder.Property(e => e.IsDispensed).HasDefaultValue(false);
+
+        builder.HasIndex(e => new { e.PrescriptionId, e.IsDispensed })
+            .HasDatabaseName("IX_prescription_items_prescription_dispensed");
 
         builder.HasOne(e => e.Prescription)
             .WithMany(p => p.Items)

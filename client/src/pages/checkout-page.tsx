@@ -392,7 +392,12 @@ export function CheckoutPage() {
       navigate(`/orders/${order.id}`)
     } catch (err) {
       setSubmitting(false)
-      setSubmitError(extractApiError(err, 'Đặt hàng thất bại'))
+      const msg = extractApiError(err, 'Đặt hàng thất bại')
+      setSubmitError(msg)
+      // Refresh cart de cap nhat stockQuantity / isAvailable / hasUnavailableItems —
+      // truong hop checkout fail vi stock vua het (atomic UPDATE tra 409),
+      // user can thay so luong moi de quyet dinh tiep.
+      await dispatch(fetchCartThunk())
     }
   }
 

@@ -5,6 +5,7 @@ import {
   closeCart,
 } from '@/features/cart/cart-slice';
 import { formatVnd } from '@/utils/format';
+import { showCartErrorToast } from '@/utils/cart-toast';
 import { useNavigate } from 'react-router-dom';
 
 export function CartDrawer() {
@@ -18,11 +19,23 @@ export function CartDrawer() {
 
   const items = cart?.items ?? [];
 
-  const handleQty = (medicationId: number, nextQty: number) => {
-    if (nextQty <= 0) {
-      dispatch(removeCartItemThunk(medicationId));
-    } else {
-      dispatch(updateCartItemThunk({ medicationId, quantity: nextQty }));
+  const handleQty = async (medicationId: number, nextQty: number) => {
+    try {
+      if (nextQty <= 0) {
+        await dispatch(removeCartItemThunk(medicationId)).unwrap();
+      } else {
+        await dispatch(updateCartItemThunk({ medicationId, quantity: nextQty })).unwrap();
+      }
+    } catch (err) {
+      showCartErrorToast(err, 'Không cập nhật được giỏ hàng');
+    }
+  };
+
+  const handleRemove = async (medicationId: number) => {
+    try {
+      await dispatch(removeCartItemThunk(medicationId)).unwrap();
+    } catch (err) {
+      showCartErrorToast(err, 'Không xoá được sản phẩm');
     }
   };
 
@@ -126,7 +139,7 @@ export function CartDrawer() {
                   )}
                 </div>
                 <button
-                  onClick={() => dispatch(removeCartItemThunk(item.medicationId))}
+                  onClick={() => handleRemove(item.medicationId)}
                   disabled={isPending}
                   className="text-outline hover:text-error h-fit transition-colors disabled:opacity-50"
                 >

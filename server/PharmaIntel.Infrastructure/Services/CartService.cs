@@ -15,6 +15,7 @@ using PharmaIntel.Core.Entities;
 using PharmaIntel.Core.Exceptions;
 using PharmaIntel.Core.Interfaces.Services;
 using PharmaIntel.Infrastructure.Data;
+using PharmaIntel.Infrastructure.Services.Helpers;
 
 namespace PharmaIntel.Infrastructure.Services;
 
@@ -77,23 +78,50 @@ public class CartService : ICartService
 
         if (existing is null)
         {
-            _db.CartItems.Add(new CartItem
+            var newItem = new CartItem
             {
                 UserId = userId,
                 MedicationId = req.MedicationId,
                 Quantity = req.Quantity,
                 AddedAt = DateTime.UtcNow
-            });
+            };
+            _db.CartItems.Add(newItem);
+
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (SqlExceptionHelpers.IsUniqueViolation(ex))
+            {
+                // Race: tab khac vua insert item cho cung (userId, medicationId).
+                // Detach entity loi, load lai row hien tai va cong don quantity.
+                _db.Entry(newItem).State = EntityState.Detached;
+
+                var conflicting = await _db.CartItems
+                    .FirstAsync(c => c.UserId == userId && c.MedicationId == req.MedicationId, ct);
+
+                var mergedQty = conflicting.Quantity + req.Quantity;
+                if (mergedQty > med.StockQuantity)
+                    throw new ConflictException(
+                        $"So luong vuot ton kho. Hien co {med.StockQuantity}, da co {conflicting.Quantity} trong gio");
+                if (mergedQty > 999)
+                    throw new ConflictException("So luong toi da 999/san pham");
+
+                conflicting.Quantity = mergedQty;
+                conflicting.AddedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+            }
         }
         else
         {
             existing.Quantity = newQty;
             existing.AddedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
         }
 
-        await _db.SaveChangesAsync(ct);
         return await GetAsync(userId, ct);
     }
+
 
     public async Task<CartDto> UpdateItemAsync(long userId, long medicationId, UpdateCartItemRequest req, CancellationToken ct = default)
     {

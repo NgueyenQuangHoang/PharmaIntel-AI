@@ -7,7 +7,8 @@
       "Bash(taskkill //F //PID 18700)",
       "Bash(taskkill //F //IM PharmaIntel.API.exe)",
       "Bash(npm run *)",
-      "Bash(dotnet ef *)"
+      "Bash(dotnet ef *)",
+      "Bash(npm i *)"
     ]
   }
 }
