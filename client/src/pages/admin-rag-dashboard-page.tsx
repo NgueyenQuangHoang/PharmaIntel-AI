@@ -58,7 +58,7 @@ export function AdminRagDashboardPage() {
             label="Feedback xấu"
             value={data?.negativeFeedbacks.toLocaleString('vi-VN') ?? '0'}
             hint={`Chưa review: ${data?.unreviewedNegativeFeedbacks ?? 0}`}
-            tone="error"
+            tone="tertiary"
           />
           <StatCard
             icon="percent"
