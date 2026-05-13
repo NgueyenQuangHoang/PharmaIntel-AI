@@ -12,7 +12,7 @@ using PharmaIntel.Infrastructure.Data;
 namespace PharmaIntel.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaIntelDbContext))]
-    [Migration("20260513070522_AddAiResponseFeedbacks")]
+    [Migration("20260513071812_AddAiResponseFeedbacks")]
     partial class AddAiResponseFeedbacks
     {
         /// <inheritdoc />
@@ -150,6 +150,86 @@ namespace PharmaIntel.Infrastructure.Migrations
                     b.ToTable("ai_insights", null, t =>
                         {
                             t.HasCheckConstraint("CK_ai_insights_type", "[insight_type] IN ('health_summary','medication','diagnostic','lifestyle','system')");
+                        });
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.AiResponseFeedback", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("admin_note");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long?>("DiagnosticMessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("diagnostic_message_id");
+
+                    b.Property<long?>("DiagnosticSessionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("diagnostic_session_id");
+
+                    b.Property<bool>("IsReviewed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_reviewed");
+
+                    b.Property<long?>("RagTraceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("rag_trace_id");
+
+                    b.Property<string>("Rating")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("rating");
+
+                    b.Property<string>("ReasonType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("reason_type");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_ai_feedback_created_at");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Rating", "IsReviewed")
+                        .HasDatabaseName("IX_ai_feedback_rating_reviewed");
+
+                    b.ToTable("ai_response_feedbacks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ai_feedback_rating", "[rating] IN ('thumbs_up','thumbs_down')");
+
+                            t.HasCheckConstraint("CK_ai_feedback_reason_type", "[reason_type] IS NULL OR [reason_type] IN ('wrong_medication','unsafe_advice','not_helpful','hallucination','other')");
                         });
                 });
 
@@ -2190,6 +2270,17 @@ namespace PharmaIntel.Infrastructure.Migrations
                 {
                     b.HasOne("PharmaIntel.Core.Entities.User", "User")
                         .WithMany("AiInsights")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.AiResponseFeedback", b =>
+                {
+                    b.HasOne("PharmaIntel.Core.Entities.User", "User")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
