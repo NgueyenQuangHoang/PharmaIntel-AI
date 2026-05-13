@@ -211,9 +211,26 @@ Hay phan hoi nhu mot tro ly y te can trong. Tra ve thuan van ban, khong markdown
 
         var url = $"{_settings.BaseUrl.TrimEnd('/')}/models/{_settings.Model}:generateContent?key={_settings.ApiKey}";
 
+        // thinkingConfig.thinkingBudget = 0 -> tat thinking mode cho cac model
+        // Gemini 2.5+ (flash-latest la 2.5). Khong tat, thinking tokens an het
+        // maxOutputTokens -> response cut giua cau.
+        // maxOutputTokens tang len 2048 (chat) / 4096 (analyze JSON) de an toan.
         object generationConfig = plainText
-            ? new { temperature = 0.5, topP = 0.9, maxOutputTokens = 1024 }
-            : (object)new { temperature = 0.4, topP = 0.9, maxOutputTokens = 2048, responseMimeType = "application/json" };
+            ? new
+            {
+                temperature = 0.5,
+                topP = 0.9,
+                maxOutputTokens = 2048,
+                thinkingConfig = new { thinkingBudget = 0 }
+            }
+            : (object)new
+            {
+                temperature = 0.4,
+                topP = 0.9,
+                maxOutputTokens = 4096,
+                responseMimeType = "application/json",
+                thinkingConfig = new { thinkingBudget = 0 }
+            };
 
         var body = new
         {
