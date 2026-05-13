@@ -28,6 +28,8 @@ public static class DependencyInjection
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
         services.Configure<GeminiSettings>(config.GetSection("Gemini"));
         services.Configure<BankQrSettings>(config.GetSection("BankQr"));
+        services.Configure<QdrantSettings>(config.GetSection("Qdrant"));
+        services.Configure<EmbeddingSettings>(config.GetSection("Embedding"));
 
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -56,6 +58,17 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(s.TimeoutSeconds <= 0 ? 30 : s.TimeoutSeconds);
         });
         services.AddScoped<IAiMedicationRetrievalService, AiMedicationRetrievalService>();
+
+        // RAG Phase 2: knowledge base vector RAG.
+        services.AddHttpClient<IEmbeddingService, GeminiEmbeddingService>((sp, client) =>
+        {
+            var s = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GeminiSettings>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(s.TimeoutSeconds <= 0 ? 30 : s.TimeoutSeconds);
+        });
+        services.AddHttpClient<IVectorSearchService, QdrantVectorSearchService>();
+        services.AddScoped<IKnowledgeIngestionService, KnowledgeIngestionService>();
+        services.AddScoped<IKnowledgeRetrievalService, KnowledgeRetrievalService>();
+
         services.AddScoped<IDiagnosticService, DiagnosticService>();
 
         // Seeder - chay luc startup neu Bootstrap:Seed:Enabled = true

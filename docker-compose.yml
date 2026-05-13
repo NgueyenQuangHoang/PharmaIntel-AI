@@ -99,9 +99,25 @@ services:
     networks:
       - pharmaintel
 
+  # Qdrant: vector DB cho RAG Phase 2 (knowledge base tai lieu y te/FAQ/chinh sach).
+  # API HTTP qua 6333, gRPC qua 6334. Du lieu persist trong qdrant-data volume.
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: pharmaintel-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - pharmaintel
+
 volumes:
   mssql-data:
     name: pharmaintel-mssql-data
+  qdrant-data:
+    name: pharmaintel-qdrant-data
 
 networks:
   pharmaintel:

@@ -18,6 +18,7 @@
 //   - Result chi tao 1 lan (UQ_diagnostic_results_session_id). Re-complete -> 409.
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PharmaIntel.Core.DTOs.Common;
 using PharmaIntel.Core.DTOs.Diagnostics;
 using PharmaIntel.Core.Entities;
@@ -34,15 +35,21 @@ public class DiagnosticService : IDiagnosticService
     private readonly PharmaIntelDbContext _db;
     private readonly IDiagnosticEngine _engine;
     private readonly IAiMedicationRetrievalService _medicationRetrieval;
+    private readonly IKnowledgeRetrievalService _knowledgeRetrieval;
+    private readonly ILogger<DiagnosticService> _logger;
 
     public DiagnosticService(
         PharmaIntelDbContext db,
         IDiagnosticEngine engine,
-        IAiMedicationRetrievalService medicationRetrieval)
+        IAiMedicationRetrievalService medicationRetrieval,
+        IKnowledgeRetrievalService knowledgeRetrieval,
+        ILogger<DiagnosticService> logger)
     {
         _db = db;
         _engine = engine;
         _medicationRetrieval = medicationRetrieval;
+        _knowledgeRetrieval = knowledgeRetrieval;
+        _logger = logger;
     }
 
     public async Task<DiagnosticSessionDto> CreateSessionAsync(long userId, CreateDiagnosticSessionRequest req, CancellationToken ct = default)
@@ -202,14 +209,35 @@ public class DiagnosticService : IDiagnosticService
             .Select(m => $"{m.SenderType}: {m.Content}")
             .ToList();
 
-        // RAG: retrieve thuoc lien quan + goi Gemini sinh chat reply
+        // RAG Phase 1: retrieve thuoc lien quan (SQL keyword)
         var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
             symptomsSummary,
             conversationMessages.Concat(new[] { $"user: {userText}" }).ToList(),
             ct);
 
+        // RAG Phase 2: retrieve tai lieu y te lien quan (vector search Qdrant).
+        // Failure cua vector layer khong duoc lam hong chat -> fallback rong.
+        IReadOnlyList<KnowledgeContext> knowledgeContexts = Array.Empty<KnowledgeContext>();
+        try
+        {
+            knowledgeContexts = await _knowledgeRetrieval.SearchAsync(userText, 5, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Knowledge retrieval that bai - tiep tuc chat khong co tai lieu context.");
+        }
+
+        // Ghep tai lieu vao symptomsSummary tam thoi de gui sang Gemini cung context.
+        var enrichedSymptomsSummary = symptomsSummary;
+        if (knowledgeContexts.Count > 0)
+        {
+            var knowledgeBlock = string.Join("\n", knowledgeContexts.Select(x =>
+                $"- [{x.SourceType}] {x.Title}: {x.Content}"));
+            enrichedSymptomsSummary += "\n\nTAI LIEU Y TE LIEN QUAN:\n" + knowledgeBlock;
+        }
+
         var aiReply = await _engine.GenerateChatReplyAsync(
-            symptomsSummary,
+            enrichedSymptomsSummary,
             conversationMessages,
             userText,
             medicationContexts,
