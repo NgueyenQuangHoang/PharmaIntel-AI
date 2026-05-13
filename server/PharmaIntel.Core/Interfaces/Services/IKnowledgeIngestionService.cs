@@ -1,7 +1,9 @@
 // =============================================================================
 // Interface: IKnowledgeIngestionService
-// Chuc nang: Ingest tai lieu y te -> chunk -> embed -> upsert Qdrant + luu SQL.
+// Chuc nang: Ingest + quan ly tai lieu y te (Phase 2 + Phase 4).
 // =============================================================================
+using PharmaIntel.Core.DTOs.Knowledge;
+
 namespace PharmaIntel.Core.Interfaces.Services;
 
 public interface IKnowledgeIngestionService
@@ -12,4 +14,17 @@ public interface IKnowledgeIngestionService
         string content,
         string? sourceUrl = null,
         CancellationToken ct = default);
+
+    Task<IReadOnlyList<KnowledgeDocumentDto>> ListAsync(CancellationToken ct = default);
+
+    Task<KnowledgeDocumentDto> GetByIdAsync(long id, CancellationToken ct = default);
+
+    Task<KnowledgeDocumentDto> UpdateAndReindexAsync(
+        long id,
+        UpdateKnowledgeDocumentRequest request,
+        CancellationToken ct = default);
+
+    Task ReindexAsync(long id, CancellationToken ct = default);
+
+    Task DeleteAsync(long id, CancellationToken ct = default);
 }

@@ -152,6 +152,25 @@ public class QdrantVectorSearchService : IVectorSearchService
         return results;
     }
 
+    public async Task DeleteAsync(string vectorId, CancellationToken ct = default)
+    {
+        var url = $"{_settings.BaseUrl.TrimEnd('/')}/collections/{_settings.CollectionName}/points/delete?wait=true";
+
+        // Xoa theo UUID deterministic (giong key dung khi upsert).
+        var body = new
+        {
+            points = new[] { ToQdrantId(vectorId) }
+        };
+
+        using var response = await _http.PostAsJsonAsync(url, body, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Qdrant delete loi {(int)response.StatusCode}: {raw}");
+        }
+    }
+
     // Bien chuoi vectorId thanh UUID deterministic (16 bytes -> UUID). Qdrant chi
     // nhan integer hoac UUID lam point ID, nen ta hash SHA-256 va lay 16 byte dau.
     private static string ToQdrantId(string vectorId)

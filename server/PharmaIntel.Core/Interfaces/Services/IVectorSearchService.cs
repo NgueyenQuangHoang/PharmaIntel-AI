@@ -19,6 +19,8 @@ public interface IVectorSearchService
         float[] queryVector,
         int topK = 5,
         CancellationToken ct = default);
+
+    Task DeleteAsync(string vectorId, CancellationToken ct = default);
 }
 
 public class VectorSearchResult
