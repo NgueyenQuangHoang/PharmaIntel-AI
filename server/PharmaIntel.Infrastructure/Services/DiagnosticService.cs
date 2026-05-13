@@ -103,38 +103,9 @@ public class DiagnosticService : IDiagnosticService
             });
         }
 
-        if (!string.IsNullOrWhiteSpace(req.InitialMessage))
-        {
-            var userText = req.InitialMessage.Trim();
-            _db.DiagnosticMessages.Add(new DiagnosticMessage
-            {
-                SessionId = session.Id,
-                SenderType = "user",
-                Content = userText,
-                SentAt = DateTime.UtcNow.AddMilliseconds(1)
-            });
-
-            // RAG: retrieve thuoc lien quan -> goi Gemini sinh reply
-            var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
-                symptomsSummary,
-                new[] { userText },
-                ct);
-
-            var aiReply = await _engine.GenerateChatReplyAsync(
-                symptomsSummary,
-                Array.Empty<string>(),
-                userText,
-                medicationContexts,
-                ct);
-
-            _db.DiagnosticMessages.Add(new DiagnosticMessage
-            {
-                SessionId = session.Id,
-                SenderType = "ai",
-                Content = aiReply,
-                SentAt = DateTime.UtcNow.AddMilliseconds(2)
-            });
-        }
+        // InitialMessage da bo: frontend tach chat thanh 2 buoc (CreateSession
+        // trong + AddMessage) de luong chat di qua RAG day du (Phase 2 vector +
+        // Phase 3 trace + Phase 5 latency). DTO van giu field cho backward compat.
 
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -374,15 +345,8 @@ public class DiagnosticService : IDiagnosticService
             .Take(MAX_SUGGESTED_MEDICATIONS)
             .ToList();
 
-        // Fallback: neu Gemini khong goi y duoc gi -> lay top OTC tu medicationContexts
-        if (selectedMedicationIds.Count == 0)
-        {
-            selectedMedicationIds = medicationContexts
-                .Where(x => !x.IsPrescriptionRequired)
-                .Select(x => x.Id)
-                .Take(MAX_SUGGESTED_MEDICATIONS)
-                .ToList();
-        }
+        // Phase 1 guardrail: KHONG fallback OTC khi Gemini khong goi y. Rong la
+        // rong - tranh tu dong ke thuoc khi AI khong du tu tin.
 
         var priority = 1;
         foreach (var medId in selectedMedicationIds)
