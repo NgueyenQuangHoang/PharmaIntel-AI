@@ -33,6 +33,12 @@ public class RagTrace
 
     public bool HasSuggestedMedication { get; set; }
 
+    // Phase 5: latency + error tracking
+    public int RetrievalLatencyMs { get; set; }
+    public int GenerationLatencyMs { get; set; }
+    public int TotalLatencyMs { get; set; }
+    public string? ErrorType { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DiagnosticSession? DiagnosticSession { get; set; }

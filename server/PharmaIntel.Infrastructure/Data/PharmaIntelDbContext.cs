@@ -77,6 +77,10 @@ public class PharmaIntelDbContext : DbContext
     // === RAG productization (Phase 4) ===
     public DbSet<AiResponseFeedback> AiResponseFeedbacks => Set<AiResponseFeedback>();
 
+    // === RAG production hardening (Phase 5) ===
+    public DbSet<EmbeddingCache> EmbeddingCaches => Set<EmbeddingCache>();
+    public DbSet<RagJob> RagJobs => Set<RagJob>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

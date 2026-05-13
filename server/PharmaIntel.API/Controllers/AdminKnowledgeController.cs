@@ -11,6 +11,7 @@
 // =============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PharmaIntel.Core.DTOs.Knowledge;
 using PharmaIntel.Core.Interfaces.Services;
 
@@ -29,6 +30,7 @@ public class AdminKnowledgeController : ControllerBase
     }
 
     [HttpPost("ingest")]
+    [EnableRateLimiting("ai-ingest")]
     public async Task<ActionResult<object>> Ingest(
         [FromBody] IngestKnowledgeRequest request,
         CancellationToken ct)
@@ -59,6 +61,7 @@ public class AdminKnowledgeController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [EnableRateLimiting("ai-ingest")]
     public async Task<ActionResult<KnowledgeDocumentDto>> Update(
         long id,
         [FromBody] UpdateKnowledgeDocumentRequest request,
@@ -68,6 +71,7 @@ public class AdminKnowledgeController : ControllerBase
     }
 
     [HttpPost("{id:long}/reindex")]
+    [EnableRateLimiting("ai-ingest")]
     public async Task<IActionResult> Reindex(long id, CancellationToken ct)
     {
         await _ingestion.ReindexAsync(id, ct);

@@ -77,6 +77,12 @@ public static class DependencyInjection
         services.AddScoped<IAiFeedbackService, AiFeedbackService>();
         services.AddScoped<IRagDashboardService, RagDashboardService>();
 
+        // RAG Phase 5: production hardening (cache + job worker + maintenance).
+        services.AddMemoryCache();
+        services.AddSingleton<IRagCacheService, MemoryRagCacheService>();
+        services.AddScoped<IRagMaintenanceService, RagMaintenanceService>();
+        services.AddHostedService<RagJobWorker>();
+
         services.AddScoped<IDiagnosticService, DiagnosticService>();
 
         // Seeder - chay luc startup neu Bootstrap:Seed:Enabled = true

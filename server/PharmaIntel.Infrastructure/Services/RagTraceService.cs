@@ -25,6 +25,10 @@ public class RagTraceService : IRagTraceService
         IReadOnlyList<AiMedicationContext> medicationContexts,
         IReadOnlyList<KnowledgeContext> knowledgeContexts,
         string aiResponse,
+        int retrievalLatencyMs = 0,
+        int generationLatencyMs = 0,
+        int totalLatencyMs = 0,
+        string? errorType = null,
         CancellationToken ct = default)
     {
         var medicationContextJson = JsonSerializer.Serialize(
@@ -56,7 +60,11 @@ public class RagTraceService : IRagTraceService
             HasMedicationContext = medicationContexts.Count > 0,
             HasKnowledgeContext = knowledgeContexts.Count > 0,
             HasSuggestedMedication = medicationContexts.Count > 0 && MentionsMedication(aiResponse, medicationContexts),
-            HasRedFlagWarning = ContainsRedFlagWarning(aiResponse)
+            HasRedFlagWarning = ContainsRedFlagWarning(aiResponse),
+            RetrievalLatencyMs = retrievalLatencyMs,
+            GenerationLatencyMs = generationLatencyMs,
+            TotalLatencyMs = totalLatencyMs,
+            ErrorType = errorType
         };
 
         _db.RagTraces.Add(trace);

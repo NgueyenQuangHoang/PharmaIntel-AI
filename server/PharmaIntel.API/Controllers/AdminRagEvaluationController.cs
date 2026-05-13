@@ -6,6 +6,7 @@
 // =============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PharmaIntel.Core.Interfaces.Services;
 
 namespace PharmaIntel.API.Controllers;
@@ -23,6 +24,7 @@ public class AdminRagEvaluationController : ControllerBase
     }
 
     [HttpPost("run")]
+    [EnableRateLimiting("ai-evaluation")]
     public async Task<IActionResult> Run(CancellationToken ct)
     {
         var results = await _evaluation.RunAsync(ct);

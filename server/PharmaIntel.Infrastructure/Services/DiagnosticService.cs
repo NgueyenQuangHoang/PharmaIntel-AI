@@ -212,6 +212,11 @@ public class DiagnosticService : IDiagnosticService
             .Select(m => $"{m.SenderType}: {m.Content}")
             .ToList();
 
+        // Phase 5: do latency cua retrieve + generate de log vao RagTrace.
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
+        var retrievalSw = System.Diagnostics.Stopwatch.StartNew();
+        string? errorType = null;
+
         // RAG Phase 1: retrieve thuoc lien quan (SQL keyword)
         var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
             symptomsSummary,
@@ -228,7 +233,10 @@ public class DiagnosticService : IDiagnosticService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Knowledge retrieval that bai - tiep tuc chat khong co tai lieu context.");
+            errorType = "knowledge_retrieval_failed";
         }
+
+        retrievalSw.Stop();
 
         // Ghep tai lieu vao symptomsSummary tam thoi de gui sang Gemini cung context.
         var enrichedSymptomsSummary = symptomsSummary;
@@ -239,12 +247,15 @@ public class DiagnosticService : IDiagnosticService
             enrichedSymptomsSummary += "\n\nTAI LIEU Y TE LIEN QUAN:\n" + knowledgeBlock;
         }
 
+        var generationSw = System.Diagnostics.Stopwatch.StartNew();
         var aiReply = await _engine.GenerateChatReplyAsync(
             enrichedSymptomsSummary,
             conversationMessages,
             userText,
             medicationContexts,
             ct);
+        generationSw.Stop();
+        totalSw.Stop();
 
         _db.DiagnosticMessages.Add(new DiagnosticMessage
         {
@@ -259,7 +270,13 @@ public class DiagnosticService : IDiagnosticService
         // Phase 3: log trace de audit/eval. Failure khong duoc lam hong chat.
         try
         {
-            await _ragTrace.LogAsync(sessionId, userText, medicationContexts, knowledgeContexts, aiReply, ct);
+            await _ragTrace.LogAsync(
+                sessionId, userText, medicationContexts, knowledgeContexts, aiReply,
+                retrievalLatencyMs: (int)retrievalSw.ElapsedMilliseconds,
+                generationLatencyMs: (int)generationSw.ElapsedMilliseconds,
+                totalLatencyMs: (int)totalSw.ElapsedMilliseconds,
+                errorType: errorType,
+                ct: ct);
         }
         catch (Exception ex)
         {

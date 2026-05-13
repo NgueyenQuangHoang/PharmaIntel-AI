@@ -29,6 +29,12 @@ public class RagTraceConfiguration : IEntityTypeConfiguration<RagTrace>
         builder.Property(x => x.AiResponse)
             .IsRequired();
 
+        // Phase 5: latency + error tracking
+        builder.Property(x => x.RetrievalLatencyMs).HasDefaultValue(0);
+        builder.Property(x => x.GenerationLatencyMs).HasDefaultValue(0);
+        builder.Property(x => x.TotalLatencyMs).HasDefaultValue(0);
+        builder.Property(x => x.ErrorType).HasMaxLength(100);
+
         builder.Property(x => x.CreatedAt)
             .HasColumnType("datetime2(0)")
             .HasDefaultValueSql("SYSUTCDATETIME()");
