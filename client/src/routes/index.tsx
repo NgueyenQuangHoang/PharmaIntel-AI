@@ -14,6 +14,9 @@ import { AdminUsersPage } from '@/pages/admin-users-page';
 import { AdminCategoriesPage } from '@/pages/admin-categories-page';
 import { AdminMedicationsPage } from '@/pages/admin-medications-page';
 import { AdminOrdersPage } from '@/pages/admin-orders-page';
+import { AdminRagKnowledgePage } from '@/pages/admin-rag-knowledge-page';
+import { AdminRagFeedbackPage } from '@/pages/admin-rag-feedback-page';
+import { AdminRagDashboardPage } from '@/pages/admin-rag-dashboard-page';
 import { PrescriptionsPage } from '@/pages/prescriptions-page';
 import { MedicationRemindersPage } from '@/pages/medication-reminders-page';
 import { PrescriptionDetailPage } from '@/pages/prescription-detail-page';
@@ -82,6 +85,9 @@ export function AppRoutes() {
           <Route path="/admin/categories" element={<AdminCategoriesPage />} />
           <Route path="/admin/medications" element={<AdminMedicationsPage />} />
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/admin/rag/dashboard" element={<AdminRagDashboardPage />} />
+          <Route path="/admin/rag/knowledge" element={<AdminRagKnowledgePage />} />
+          <Route path="/admin/rag/feedback" element={<AdminRagFeedbackPage />} />
         </Route>
 
         {/* Pharmacist area - yeu cau role=pharmacist */}

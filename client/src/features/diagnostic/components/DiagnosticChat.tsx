@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 import { sendChatMessageThunk } from '@/features/diagnostic/diagnostic-slice';
+import { ragApi } from '@/features/rag/rag-api';
 
 const WELCOME_BOT_MESSAGE =
   'Chào bạn, tôi là trợ lý y tế AI. Để tôi có thể hỗ trợ tốt nhất, vui lòng mô tả chi tiết các triệu chứng bạn đang gặp phải hoặc chọn từ danh sách bên phải.';
@@ -33,6 +34,30 @@ export function DiagnosticChat() {
   const [draft, setDraft] = useState('');
   const [optimisticMessages, setOptimisticMessages] = useState<LocalChatMessage[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [feedbackTarget, setFeedbackTarget] = useState<{
+    messageId: number;
+    rating: 'thumbs_up' | 'thumbs_down';
+  } | null>(null);
+
+  const [feedbackReason, setFeedbackReason] = useState('not_helpful');
+  const [feedbackComment, setFeedbackComment] = useState('');
+
+  const submitFeedback = async () => {
+    if (!feedbackTarget || !session) return;
+
+    await ragApi.createFeedback({
+      diagnosticSessionId: session.id,
+      diagnosticMessageId: feedbackTarget.messageId,
+      rating: feedbackTarget.rating,
+      reasonType: feedbackTarget.rating === 'thumbs_down' ? feedbackReason : null,
+      comment: feedbackComment.trim() || null,
+    });
+
+    setFeedbackTarget(null);
+    setFeedbackReason('not_helpful');
+    setFeedbackComment('');
+  };
 
   const serverMessages = session?.messages ?? [];
 
@@ -195,6 +220,34 @@ export function DiagnosticChat() {
                 >
                   {formatTime(m.sentAt)}
                 </span>
+                {!isUser && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFeedbackTarget({
+                          messageId: Number(m.id),
+                          rating: 'thumbs_up',
+                        })
+                      }
+                      className="text-xs rounded-full border border-outline-variant/40 px-2 py-1 hover:bg-primary-container/30"
+                    >
+                      👍 Hữu ích
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFeedbackTarget({
+                          messageId: Number(m.id),
+                          rating: 'thumbs_down',
+                        })
+                      }
+                      className="text-xs rounded-full border border-outline-variant/40 px-2 py-1 hover:bg-error-container/30"
+                    >
+                      👎 Báo lỗi
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -253,6 +306,60 @@ export function DiagnosticChat() {
           AI có thể đưa ra câu trả lời không chính xác. Hãy luôn tham khảo ý kiến bác sĩ.
         </p>
       </form>
+
+      {feedbackTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl border border-outline-variant/40">
+            <h3 className="font-bold text-lg mb-2">
+              {feedbackTarget.rating === 'thumbs_up'
+                ? 'Cảm ơn bạn đã đánh giá'
+                : 'Bạn gặp vấn đề gì với câu trả lời này?'}
+            </h3>
+
+            {feedbackTarget.rating === 'thumbs_down' && (
+              <>
+                <label className="block text-sm font-semibold mb-1">Lý do</label>
+                <select
+                  value={feedbackReason}
+                  onChange={(e) => setFeedbackReason(e.target.value)}
+                  className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-2 mb-3 text-sm"
+                >
+                  <option value="wrong_medication">Gợi ý thuốc sai</option>
+                  <option value="unsafe_advice">Lời khuyên không an toàn</option>
+                  <option value="not_helpful">Không hữu ích</option>
+                  <option value="hallucination">Bịa thông tin</option>
+                  <option value="other">Khác</option>
+                </select>
+              </>
+            )}
+
+            <label className="block text-sm font-semibold mb-1">Ghi chú thêm</label>
+            <textarea
+              value={feedbackComment}
+              onChange={(e) => setFeedbackComment(e.target.value)}
+              className="w-full min-h-24 rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3 text-sm"
+              placeholder="Mô tả ngắn để admin cải thiện hệ thống..."
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFeedbackTarget(null)}
+                className="rounded-full border border-outline-variant px-4 py-2 text-sm font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={submitFeedback}
+                className="rounded-full bg-primary text-on-primary px-4 py-2 text-sm font-semibold"
+              >
+                Gửi feedback
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
