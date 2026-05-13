@@ -71,6 +71,9 @@ public class PharmaIntelDbContext : DbContext
     public DbSet<KnowledgeDocument> KnowledgeDocuments => Set<KnowledgeDocument>();
     public DbSet<KnowledgeChunk> KnowledgeChunks => Set<KnowledgeChunk>();
 
+    // === RAG trace + evaluation (Phase 3) ===
+    public DbSet<RagTrace> RagTraces => Set<RagTrace>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

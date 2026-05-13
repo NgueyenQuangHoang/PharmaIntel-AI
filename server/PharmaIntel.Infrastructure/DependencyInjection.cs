@@ -69,6 +69,10 @@ public static class DependencyInjection
         services.AddScoped<IKnowledgeIngestionService, KnowledgeIngestionService>();
         services.AddScoped<IKnowledgeRetrievalService, KnowledgeRetrievalService>();
 
+        // RAG Phase 3: trace + evaluation.
+        services.AddScoped<IRagTraceService, RagTraceService>();
+        services.AddScoped<IRagEvaluationService, RagEvaluationService>();
+
         services.AddScoped<IDiagnosticService, DiagnosticService>();
 
         // Seeder - chay luc startup neu Bootstrap:Seed:Enabled = true

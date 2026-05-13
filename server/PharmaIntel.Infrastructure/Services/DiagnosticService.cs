@@ -36,6 +36,7 @@ public class DiagnosticService : IDiagnosticService
     private readonly IDiagnosticEngine _engine;
     private readonly IAiMedicationRetrievalService _medicationRetrieval;
     private readonly IKnowledgeRetrievalService _knowledgeRetrieval;
+    private readonly IRagTraceService _ragTrace;
     private readonly ILogger<DiagnosticService> _logger;
 
     public DiagnosticService(
@@ -43,12 +44,14 @@ public class DiagnosticService : IDiagnosticService
         IDiagnosticEngine engine,
         IAiMedicationRetrievalService medicationRetrieval,
         IKnowledgeRetrievalService knowledgeRetrieval,
+        IRagTraceService ragTrace,
         ILogger<DiagnosticService> logger)
     {
         _db = db;
         _engine = engine;
         _medicationRetrieval = medicationRetrieval;
         _knowledgeRetrieval = knowledgeRetrieval;
+        _ragTrace = ragTrace;
         _logger = logger;
     }
 
@@ -252,6 +255,16 @@ public class DiagnosticService : IDiagnosticService
         });
 
         await _db.SaveChangesAsync(ct);
+
+        // Phase 3: log trace de audit/eval. Failure khong duoc lam hong chat.
+        try
+        {
+            await _ragTrace.LogAsync(sessionId, userText, medicationContexts, knowledgeContexts, aiReply, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RAG trace log that bai cho session {SessionId}", sessionId);
+        }
 
         return new DiagnosticMessageDto
         {
