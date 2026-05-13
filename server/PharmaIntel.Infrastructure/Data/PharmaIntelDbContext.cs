@@ -67,6 +67,20 @@ public class PharmaIntelDbContext : DbContext
     // === AI ===
     public DbSet<AiInsight> AiInsights => Set<AiInsight>();
 
+    // === Knowledge base (RAG Phase 2) ===
+    public DbSet<KnowledgeDocument> KnowledgeDocuments => Set<KnowledgeDocument>();
+    public DbSet<KnowledgeChunk> KnowledgeChunks => Set<KnowledgeChunk>();
+
+    // === RAG trace + evaluation (Phase 3) ===
+    public DbSet<RagTrace> RagTraces => Set<RagTrace>();
+
+    // === RAG productization (Phase 4) ===
+    public DbSet<AiResponseFeedback> AiResponseFeedbacks => Set<AiResponseFeedback>();
+
+    // === RAG production hardening (Phase 5) ===
+    public DbSet<EmbeddingCache> EmbeddingCaches => Set<EmbeddingCache>();
+    public DbSet<RagJob> RagJobs => Set<RagJob>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

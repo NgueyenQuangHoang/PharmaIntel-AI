@@ -18,6 +18,7 @@
 //   - Result chi tao 1 lan (UQ_diagnostic_results_session_id). Re-complete -> 409.
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PharmaIntel.Core.DTOs.Common;
 using PharmaIntel.Core.DTOs.Diagnostics;
 using PharmaIntel.Core.Entities;
@@ -34,15 +35,24 @@ public class DiagnosticService : IDiagnosticService
     private readonly PharmaIntelDbContext _db;
     private readonly IDiagnosticEngine _engine;
     private readonly IAiMedicationRetrievalService _medicationRetrieval;
+    private readonly IKnowledgeRetrievalService _knowledgeRetrieval;
+    private readonly IRagTraceService _ragTrace;
+    private readonly ILogger<DiagnosticService> _logger;
 
     public DiagnosticService(
         PharmaIntelDbContext db,
         IDiagnosticEngine engine,
-        IAiMedicationRetrievalService medicationRetrieval)
+        IAiMedicationRetrievalService medicationRetrieval,
+        IKnowledgeRetrievalService knowledgeRetrieval,
+        IRagTraceService ragTrace,
+        ILogger<DiagnosticService> logger)
     {
         _db = db;
         _engine = engine;
         _medicationRetrieval = medicationRetrieval;
+        _knowledgeRetrieval = knowledgeRetrieval;
+        _ragTrace = ragTrace;
+        _logger = logger;
     }
 
     public async Task<DiagnosticSessionDto> CreateSessionAsync(long userId, CreateDiagnosticSessionRequest req, CancellationToken ct = default)
@@ -93,38 +103,9 @@ public class DiagnosticService : IDiagnosticService
             });
         }
 
-        if (!string.IsNullOrWhiteSpace(req.InitialMessage))
-        {
-            var userText = req.InitialMessage.Trim();
-            _db.DiagnosticMessages.Add(new DiagnosticMessage
-            {
-                SessionId = session.Id,
-                SenderType = "user",
-                Content = userText,
-                SentAt = DateTime.UtcNow.AddMilliseconds(1)
-            });
-
-            // RAG: retrieve thuoc lien quan -> goi Gemini sinh reply
-            var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
-                symptomsSummary,
-                new[] { userText },
-                ct);
-
-            var aiReply = await _engine.GenerateChatReplyAsync(
-                symptomsSummary,
-                Array.Empty<string>(),
-                userText,
-                medicationContexts,
-                ct);
-
-            _db.DiagnosticMessages.Add(new DiagnosticMessage
-            {
-                SessionId = session.Id,
-                SenderType = "ai",
-                Content = aiReply,
-                SentAt = DateTime.UtcNow.AddMilliseconds(2)
-            });
-        }
+        // InitialMessage da bo: frontend tach chat thanh 2 buoc (CreateSession
+        // trong + AddMessage) de luong chat di qua RAG day du (Phase 2 vector +
+        // Phase 3 trace + Phase 5 latency). DTO van giu field cho backward compat.
 
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -202,18 +183,50 @@ public class DiagnosticService : IDiagnosticService
             .Select(m => $"{m.SenderType}: {m.Content}")
             .ToList();
 
-        // RAG: retrieve thuoc lien quan + goi Gemini sinh chat reply
+        // Phase 5: do latency cua retrieve + generate de log vao RagTrace.
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
+        var retrievalSw = System.Diagnostics.Stopwatch.StartNew();
+        string? errorType = null;
+
+        // RAG Phase 1: retrieve thuoc lien quan (SQL keyword)
         var medicationContexts = await _medicationRetrieval.SearchRelevantMedicationsAsync(
             symptomsSummary,
             conversationMessages.Concat(new[] { $"user: {userText}" }).ToList(),
             ct);
 
+        // RAG Phase 2: retrieve tai lieu y te lien quan (vector search Qdrant).
+        // Failure cua vector layer khong duoc lam hong chat -> fallback rong.
+        IReadOnlyList<KnowledgeContext> knowledgeContexts = Array.Empty<KnowledgeContext>();
+        try
+        {
+            knowledgeContexts = await _knowledgeRetrieval.SearchAsync(userText, 5, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Knowledge retrieval that bai - tiep tuc chat khong co tai lieu context.");
+            errorType = "knowledge_retrieval_failed";
+        }
+
+        retrievalSw.Stop();
+
+        // Ghep tai lieu vao symptomsSummary tam thoi de gui sang Gemini cung context.
+        var enrichedSymptomsSummary = symptomsSummary;
+        if (knowledgeContexts.Count > 0)
+        {
+            var knowledgeBlock = string.Join("\n", knowledgeContexts.Select(x =>
+                $"- [{x.SourceType}] {x.Title}: {x.Content}"));
+            enrichedSymptomsSummary += "\n\nTAI LIEU Y TE LIEN QUAN:\n" + knowledgeBlock;
+        }
+
+        var generationSw = System.Diagnostics.Stopwatch.StartNew();
         var aiReply = await _engine.GenerateChatReplyAsync(
-            symptomsSummary,
+            enrichedSymptomsSummary,
             conversationMessages,
             userText,
             medicationContexts,
             ct);
+        generationSw.Stop();
+        totalSw.Stop();
 
         _db.DiagnosticMessages.Add(new DiagnosticMessage
         {
@@ -224,6 +237,22 @@ public class DiagnosticService : IDiagnosticService
         });
 
         await _db.SaveChangesAsync(ct);
+
+        // Phase 3: log trace de audit/eval. Failure khong duoc lam hong chat.
+        try
+        {
+            await _ragTrace.LogAsync(
+                sessionId, userText, medicationContexts, knowledgeContexts, aiReply,
+                retrievalLatencyMs: (int)retrievalSw.ElapsedMilliseconds,
+                generationLatencyMs: (int)generationSw.ElapsedMilliseconds,
+                totalLatencyMs: (int)totalSw.ElapsedMilliseconds,
+                errorType: errorType,
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RAG trace log that bai cho session {SessionId}", sessionId);
+        }
 
         return new DiagnosticMessageDto
         {
@@ -316,15 +345,8 @@ public class DiagnosticService : IDiagnosticService
             .Take(MAX_SUGGESTED_MEDICATIONS)
             .ToList();
 
-        // Fallback: neu Gemini khong goi y duoc gi -> lay top OTC tu medicationContexts
-        if (selectedMedicationIds.Count == 0)
-        {
-            selectedMedicationIds = medicationContexts
-                .Where(x => !x.IsPrescriptionRequired)
-                .Select(x => x.Id)
-                .Take(MAX_SUGGESTED_MEDICATIONS)
-                .ToList();
-        }
+        // Phase 1 guardrail: KHONG fallback OTC khi Gemini khong goi y. Rong la
+        // rong - tranh tu dong ke thuoc khi AI khong du tu tin.
 
         var priority = 1;
         foreach (var medId in selectedMedicationIds)

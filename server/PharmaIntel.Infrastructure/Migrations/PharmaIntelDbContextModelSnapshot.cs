@@ -150,6 +150,86 @@ namespace PharmaIntel.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PharmaIntel.Core.Entities.AiResponseFeedback", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("admin_note");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long?>("DiagnosticMessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("diagnostic_message_id");
+
+                    b.Property<long?>("DiagnosticSessionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("diagnostic_session_id");
+
+                    b.Property<bool>("IsReviewed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_reviewed");
+
+                    b.Property<long?>("RagTraceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("rag_trace_id");
+
+                    b.Property<string>("Rating")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("rating");
+
+                    b.Property<string>("ReasonType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("reason_type");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_ai_feedback_created_at");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Rating", "IsReviewed")
+                        .HasDatabaseName("IX_ai_feedback_rating_reviewed");
+
+                    b.ToTable("ai_response_feedbacks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ai_feedback_rating", "[rating] IN ('thumbs_up','thumbs_down')");
+
+                            t.HasCheckConstraint("CK_ai_feedback_reason_type", "[reason_type] IS NULL OR [reason_type] IN ('wrong_medication','unsafe_advice','not_helpful','hallucination','other')");
+                        });
+                });
+
             modelBuilder.Entity("PharmaIntel.Core.Entities.AuditLog", b =>
                 {
                     b.Property<long>("Id")
@@ -588,6 +668,47 @@ namespace PharmaIntel.Infrastructure.Migrations
                     b.ToTable("doctors", (string)null);
                 });
 
+            modelBuilder.Entity("PharmaIntel.Core.Entities.EmbeddingCache", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("TextHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("text_hash");
+
+                    b.Property<string>("VectorJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("vector_json");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TextHash", "Model")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_embedding_cache_hash_model");
+
+                    b.ToTable("embedding_cache", (string)null);
+                });
+
             modelBuilder.Entity("PharmaIntel.Core.Entities.HealthMetric", b =>
                 {
                     b.Property<long>("Id")
@@ -639,6 +760,117 @@ namespace PharmaIntel.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_health_metrics_type", "[metric_type] IN ('blood_pressure','heart_rate','temperature','weight','blood_sugar','oxygen_saturation')");
                         });
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.KnowledgeChunk", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("ChunkIndex")
+                        .HasColumnType("int")
+                        .HasColumnName("chunk_index");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long>("DocumentId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("MetadataJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<string>("VectorId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("vector_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VectorId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_knowledge_chunks_vector_id");
+
+                    b.HasIndex("DocumentId", "ChunkIndex")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_knowledge_chunks_document_chunk");
+
+                    b.ToTable("knowledge_chunks", (string)null);
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.KnowledgeDocument", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("source_type");
+
+                    b.Property<string>("SourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("source_url");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceType", "IsActive")
+                        .HasDatabaseName("IX_knowledge_documents_source_active");
+
+                    b.ToTable("knowledge_documents", (string)null);
                 });
 
             modelBuilder.Entity("PharmaIntel.Core.Entities.Medication", b =>
@@ -1667,6 +1899,165 @@ namespace PharmaIntel.Infrastructure.Migrations
                     b.ToTable("prescription_items", (string)null);
                 });
 
+            modelBuilder.Entity("PharmaIntel.Core.Entities.RagJob", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long?>("DocumentId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("JobType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("job_type");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("payload_json");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("queued")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_rag_jobs_status_created_at");
+
+                    b.ToTable("rag_jobs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_rag_jobs_status", "[status] IN ('queued','running','completed','failed')");
+
+                            t.HasCheckConstraint("CK_rag_jobs_type", "[job_type] IN ('ingest','reindex','delete_vector')");
+                        });
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.RagTrace", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AiResponse")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ai_response");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long?>("DiagnosticSessionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("diagnostic_session_id");
+
+                    b.Property<string>("ErrorType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("error_type");
+
+                    b.Property<int>("GenerationLatencyMs")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("generation_latency_ms");
+
+                    b.Property<bool>("HasKnowledgeContext")
+                        .HasColumnType("bit")
+                        .HasColumnName("has_knowledge_context");
+
+                    b.Property<bool>("HasMedicationContext")
+                        .HasColumnType("bit")
+                        .HasColumnName("has_medication_context");
+
+                    b.Property<bool>("HasRedFlagWarning")
+                        .HasColumnType("bit")
+                        .HasColumnName("has_red_flag_warning");
+
+                    b.Property<bool>("HasSuggestedMedication")
+                        .HasColumnType("bit")
+                        .HasColumnName("has_suggested_medication");
+
+                    b.Property<string>("KnowledgeContextJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("knowledge_context_json");
+
+                    b.Property<string>("MedicationContextJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("medication_context_json");
+
+                    b.Property<int>("RetrievalLatencyMs")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("retrieval_latency_ms");
+
+                    b.Property<int>("TotalLatencyMs")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("total_latency_ms");
+
+                    b.Property<string>("UserMessage")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("user_message");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_rag_traces_created_at");
+
+                    b.HasIndex("DiagnosticSessionId")
+                        .HasDatabaseName("IX_rag_traces_session_id");
+
+                    b.ToTable("rag_traces", (string)null);
+                });
+
             modelBuilder.Entity("PharmaIntel.Core.Entities.RefreshToken", b =>
                 {
                     b.Property<long>("Id")
@@ -2013,6 +2404,17 @@ namespace PharmaIntel.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PharmaIntel.Core.Entities.AiResponseFeedback", b =>
+                {
+                    b.HasOne("PharmaIntel.Core.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("PharmaIntel.Core.Entities.AuditLog", b =>
                 {
                     b.HasOne("PharmaIntel.Core.Entities.User", "ActorUser")
@@ -2130,6 +2532,17 @@ namespace PharmaIntel.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.KnowledgeChunk", b =>
+                {
+                    b.HasOne("PharmaIntel.Core.Entities.KnowledgeDocument", "Document")
+                        .WithMany("Chunks")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
                 });
 
             modelBuilder.Entity("PharmaIntel.Core.Entities.Medication", b =>
@@ -2377,6 +2790,16 @@ namespace PharmaIntel.Infrastructure.Migrations
                     b.Navigation("Prescription");
                 });
 
+            modelBuilder.Entity("PharmaIntel.Core.Entities.RagTrace", b =>
+                {
+                    b.HasOne("PharmaIntel.Core.Entities.DiagnosticSession", "DiagnosticSession")
+                        .WithMany()
+                        .HasForeignKey("DiagnosticSessionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("DiagnosticSession");
+                });
+
             modelBuilder.Entity("PharmaIntel.Core.Entities.RefreshToken", b =>
                 {
                     b.HasOne("PharmaIntel.Core.Entities.RefreshToken", "ReplacedByToken")
@@ -2444,6 +2867,11 @@ namespace PharmaIntel.Infrastructure.Migrations
             modelBuilder.Entity("PharmaIntel.Core.Entities.Doctor", b =>
                 {
                     b.Navigation("Prescriptions");
+                });
+
+            modelBuilder.Entity("PharmaIntel.Core.Entities.KnowledgeDocument", b =>
+                {
+                    b.Navigation("Chunks");
                 });
 
             modelBuilder.Entity("PharmaIntel.Core.Entities.Medication", b =>

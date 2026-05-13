@@ -5,6 +5,7 @@
 // =============================================================================
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -83,6 +84,53 @@ static string[] ResolveCorsOrigins(IConfiguration config)
 
     return merged.Length > 0 ? merged : ["http://localhost:5173"];
 }
+
+// === Rate Limiter (Phase 5: chong abuse AI/RAG endpoints) ===
+// 3 policy:
+//   - "ai-chat"        : 20 request/phut/user (chat AI + diagnostic message)
+//   - "ai-ingest"      : 10 request/phut/admin (ingest/update/reindex knowledge)
+//   - "ai-evaluation"  : 1 request/phut/admin (chay full eval suite - rat ton)
+// PartitionKey la user identity, fallback IP.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("ai-chat", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.User.Identity?.Name
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("ai-ingest", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.User.Identity?.Name
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("ai-evaluation", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.User.Identity?.Name
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 1,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+});
 
 // === Global Exception Handler + ProblemDetails (chuan RFC 7807) ===
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -165,6 +213,7 @@ app.UseCors("AllowClient");
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 
 // === Health endpoints (KHONG yeu cau auth) ===

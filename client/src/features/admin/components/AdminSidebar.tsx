@@ -11,6 +11,9 @@ const NAV_ITEMS = [
   { to: '/admin/categories', icon: 'category', label: 'Danh mục' },
   { to: '/admin/medications', icon: 'medication', label: 'Sản phẩm' },
   { to: '/admin/orders', icon: 'receipt_long', label: 'Đơn hàng' },
+  { to: '/admin/rag/dashboard', icon: 'monitoring', label: 'RAG Dashboard' },
+  { to: '/admin/rag/knowledge', icon: 'library_books', label: 'Tri thức RAG' },
+  { to: '/admin/rag/feedback', icon: 'thumbs_up_down', label: 'Feedback AI' },
 ]
 
 export function AdminSidebar() {

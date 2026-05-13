@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 import {
@@ -19,11 +19,13 @@ export function DiagnosticSidebar() {
     symptomsStatus,
     selectedSymptomIds,
     completing,
-    sessionStatus,
     error,
   } = useAppSelector((s) => s.diagnostic);
 
-  const isAnalyzing = completing || sessionStatus === 'loading';
+  // startingAnalysis chi true khi user bam nut "Phan tich & Ke thuoc". Tach
+  // khoi sessionStatus de chat (auto-tao session) khong trigger overlay.
+  const [startingAnalysis, setStartingAnalysis] = useState(false);
+  const isAnalyzing = completing || startingAnalysis;
 
   useEffect(() => {
     if (symptomsStatus === 'idle') {
@@ -44,6 +46,7 @@ export function DiagnosticSidebar() {
 
   const handleAnalyze = async () => {
     if (selectedSymptomIds.length === 0 || isAnalyzing) return;
+    setStartingAnalysis(true);
     try {
       // Reset phien cu (neu co) truoc khi tao moi
       dispatch(resetSession());
@@ -54,6 +57,8 @@ export function DiagnosticSidebar() {
       navigate(`/diagnostic/result?sessionId=${completed.id}`);
     } catch {
       /* error in slice */
+    } finally {
+      setStartingAnalysis(false);
     }
   };
 

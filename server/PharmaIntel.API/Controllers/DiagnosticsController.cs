@@ -11,6 +11,7 @@
 // =============================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PharmaIntel.API.Extensions;
 using PharmaIntel.Core.DTOs.Common;
 using PharmaIntel.Core.DTOs.Diagnostics;
@@ -48,6 +49,7 @@ public class DiagnosticsController : ControllerBase
         => Ok(await _service.GetSessionByIdAsync(User.GetUserId(), id, ct));
 
     [HttpPost("sessions/{id:long}/messages")]
+    [EnableRateLimiting("ai-chat")]
     public async Task<ActionResult<DiagnosticMessageDto>> AddMessage(
         long id, [FromBody] AddDiagnosticMessageRequest request, CancellationToken ct)
     {
@@ -56,6 +58,7 @@ public class DiagnosticsController : ControllerBase
     }
 
     [HttpPost("sessions/{id:long}/complete")]
+    [EnableRateLimiting("ai-chat")]
     public async Task<ActionResult<DiagnosticSessionDto>> Complete(long id, CancellationToken ct)
         => Ok(await _service.CompleteSessionAsync(User.GetUserId(), id, ct));
 

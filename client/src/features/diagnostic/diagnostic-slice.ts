@@ -92,6 +92,29 @@ export const sendMessageThunk = createAsyncThunk<
   }
 })
 
+// sendChatMessageThunk: dung cho UI chat. Neu chua co session -> tao session
+// trong (khong InitialMessage), sau do goi addMessage de:
+//   1. Backend chay full RAG pipeline (knowledge + medication + trace + latency).
+//   2. Frontend bat dung co sendingMessage (typing 3 cham) thay vi sessionStatus.
+// Tach khoi createSessionThunk thuan tuy (chi sidebar dung khi bam "Phan tich").
+export const sendChatMessageThunk = createAsyncThunk<
+  DiagnosticSession,
+  { sessionId?: number; symptomIds: number[]; content: string },
+  { rejectValue: string }
+>('diagnostic/sendChatMessage', async ({ sessionId, symptomIds, content }, { rejectWithValue }) => {
+  try {
+    let activeSessionId = sessionId
+    if (!activeSessionId) {
+      const created = await diagnosticApi.createSession({ symptomIds })
+      activeSessionId = created.id
+    }
+    await diagnosticApi.addMessage(activeSessionId, content)
+    return await diagnosticApi.getSession(activeSessionId)
+  } catch (err) {
+    return rejectWithValue(extractError(err, 'Khong gui duoc tin nhan'))
+  }
+})
+
 export const completeSessionThunk = createAsyncThunk<
   DiagnosticSession,
   number,
@@ -172,6 +195,21 @@ const diagnosticSlice = createSlice({
         state.currentSession = action.payload
       })
       .addCase(sendMessageThunk.rejected, (state, action) => {
+        state.sendingMessage = false
+        state.error = action.payload ?? 'Khong gui duoc tin nhan'
+      })
+
+      // sendChatMessageThunk: KHONG dung sessionStatus de tranh trigger overlay
+      // "Dang phan tich" o sidebar khi user dang chat.
+      .addCase(sendChatMessageThunk.pending, (state) => {
+        state.sendingMessage = true
+        state.error = null
+      })
+      .addCase(sendChatMessageThunk.fulfilled, (state, action) => {
+        state.sendingMessage = false
+        state.currentSession = action.payload
+      })
+      .addCase(sendChatMessageThunk.rejected, (state, action) => {
         state.sendingMessage = false
         state.error = action.payload ?? 'Khong gui duoc tin nhan'
       })
