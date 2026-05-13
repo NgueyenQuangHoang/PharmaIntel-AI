@@ -7,15 +7,17 @@
 //   - DiagnosticService goi truoc khi gui prompt cho IDiagnosticEngine.
 //   - Query EF Core tren bang Medications + filter IsActive = true.
 // Cach trich xuat keyword:
-//   - Tach symptomsSummary + 2 message user gan nhat theo dau cau, dau phay,
-//     khoang trang. Loai stop-word va token < 3 ky tu. Lay toi da 8 keyword.
+//   - Tach symptomsSummary + message gan nhat theo dau cau, dau phay, khoang trang.
+//   - Loai stop-word va token < 3 ky tu. Lay toi da MAX_KEYWORDS keyword.
 // Cach match:
-//   - OR tren Name, GenericName, ActiveIngredients, Benefits, Description (LIKE).
-//   - Order by IsBestSeller DESC, StockQuantity DESC.
-//   - Take 15 ban ghi de gioi han prompt size.
-// Fallback:
-//   - Khong tim ra thuoc nao -> tra ve Top 10 thuoc OTC ban chay nhat (best-seller)
-//     de Gemini van co context tham khao thay vi rong tay.
+//   - Chi retrieve khi cau hoi co intent y te (ShouldRetrieveMedications).
+//   - OR tren Name, GenericName, ActiveIngredients, Benefits, Description (LIKE)
+//     de lay candidate pool, sau do score theo do lien quan (Name/Generic/Active
+//     trong so cao hon Benefits/Usage). Threshold MIN_RELEVANCE_SCORE de loai bo
+//     thuoc khong lien quan -> tranh dua thuoc rac vao prompt Gemini.
+// Khong fallback:
+//   - Khong tim ra thuoc lien quan -> tra ve rong. Khong tu lay best-seller OTC
+//     vi do la nguon hallucination (Gemini se goi y thuoc khong lien quan).
 // =============================================================================
 using Microsoft.EntityFrameworkCore;
 using PharmaIntel.Core.Interfaces.Services;
@@ -25,9 +27,10 @@ namespace PharmaIntel.Infrastructure.Services;
 
 public class AiMedicationRetrievalService : IAiMedicationRetrievalService
 {
-    private const int MAX_KEYWORDS = 8;
+    private const int MAX_KEYWORDS = 14;
     private const int MAX_RESULTS = 15;
-    private const int FALLBACK_RESULTS = 10;
+    private const int CANDIDATE_POOL_SIZE = 60;
+    private const int MIN_RELEVANCE_SCORE = 6;
 
     // Stopword tieng Viet co ban (khong dau cho khop voi du lieu code-friendly)
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
@@ -38,6 +41,25 @@ public class AiMedicationRetrievalService : IAiMedicationRetrievalService
         "neu","ma","de","cung","con","se","dang","tren","gi","ai","sao","the",
         "trieu","chung","thuoc","dung","gi","gay","bi","minh","cam","thay",
         "hoi","khac","gia","tri","cac","nhung","mot","hai","ba","bon","nam"
+    };
+
+    private static readonly string[] MedicalIntentTerms =
+    {
+        "đau", "dau", "nhức", "nhuc", "sốt", "sot", "ho", "cảm", "cam", "cúm", "cum",
+        "viêm", "viem", "dị ứng", "di ung", "ngứa", "ngua", "phát ban", "phat ban",
+        "tiêu chảy", "tieu chay", "táo bón", "tao bon", "buồn nôn", "buon non",
+        "đau bụng", "dau bung", "đau họng", "dau hong", "sổ mũi", "so mui",
+        "nghẹt mũi", "nghet mui", "khó thở", "kho tho", "đau ngực", "dau nguc",
+        "thuốc", "thuoc", "uống gì", "uong gi", "dùng gì", "dung gi",
+        "paracetamol", "ibuprofen", "kháng sinh", "khang sinh"
+    };
+
+    private static readonly string[] NonClinicalIntentTerms =
+    {
+        "đơn hàng", "don hang", "giao hàng", "giao hang", "ship",
+        "thanh toán", "thanh toan", "đổi trả", "doi tra",
+        "địa chỉ", "dia chi", "đăng nhập", "dang nhap",
+        "tài khoản", "tai khoan", "khuyến mãi", "khuyen mai"
     };
 
     private readonly PharmaIntelDbContext _db;
@@ -52,43 +74,25 @@ public class AiMedicationRetrievalService : IAiMedicationRetrievalService
         IReadOnlyList<string> conversationMessages,
         CancellationToken ct = default)
     {
-        var keywords = ExtractKeywords(symptomsSummary, conversationMessages);
+        var combinedText = string.Join(" ",
+            new[] { symptomsSummary }.Concat(conversationMessages ?? Array.Empty<string>()));
 
-        if (keywords.Count > 0)
-        {
-            // EF Core khong dich tot Any() voi closure list -> build dynamic predicate
-            var query = _db.Medications.AsNoTracking().Where(m => m.IsActive);
+        if (!ShouldRetrieveMedications(combinedText))
+            return Array.Empty<AiMedicationContext>();
 
-            var predicate = BuildKeywordPredicate(keywords);
-            query = query.Where(predicate);
+        var keywords = ExtractKeywords(symptomsSummary, conversationMessages ?? Array.Empty<string>());
 
-            var results = await query
-                .OrderByDescending(m => m.IsBestSeller)
-                .ThenByDescending(m => m.StockQuantity)
-                .Take(MAX_RESULTS)
-                .Select(m => new AiMedicationContext
-                {
-                    Id = m.Id,
-                    Name = m.Name,
-                    GenericName = m.GenericName,
-                    ActiveIngredients = m.ActiveIngredients,
-                    Benefits = m.Benefits,
-                    UsageInstructions = m.UsageInstructions,
-                    Contraindications = m.Contraindications,
-                    IsPrescriptionRequired = m.IsPrescriptionRequired
-                })
-                .ToListAsync(ct);
+        if (keywords.Count == 0)
+            return Array.Empty<AiMedicationContext>();
 
-            if (results.Count > 0)
-                return results;
-        }
+        var predicate = BuildKeywordPredicate(keywords);
 
-        // Fallback: top OTC best-seller
-        return await _db.Medications.AsNoTracking()
-            .Where(m => m.IsActive && !m.IsPrescriptionRequired)
+        var candidates = await _db.Medications.AsNoTracking()
+            .Where(m => m.IsActive)
+            .Where(predicate)
             .OrderByDescending(m => m.IsBestSeller)
             .ThenByDescending(m => m.StockQuantity)
-            .Take(FALLBACK_RESULTS)
+            .Take(CANDIDATE_POOL_SIZE)
             .Select(m => new AiMedicationContext
             {
                 Id = m.Id,
@@ -101,6 +105,56 @@ public class AiMedicationRetrievalService : IAiMedicationRetrievalService
                 IsPrescriptionRequired = m.IsPrescriptionRequired
             })
             .ToListAsync(ct);
+
+        return candidates
+            .Select(m => new { Medication = m, Score = ScoreMedication(m, keywords) })
+            .Where(x => x.Score >= MIN_RELEVANCE_SCORE)
+            .OrderByDescending(x => x.Score)
+            .Take(MAX_RESULTS)
+            .Select(x => x.Medication)
+            .ToList();
+    }
+
+    private static bool ShouldRetrieveMedications(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var normalized = text.ToLowerInvariant();
+
+        var hasMedicalIntent = MedicalIntentTerms.Any(term =>
+            normalized.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        if (!hasMedicalIntent)
+            return false;
+
+        var hasNonClinicalIntent = NonClinicalIntentTerms.Any(term =>
+            normalized.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        return !hasNonClinicalIntent || hasMedicalIntent;
+    }
+
+    private static int ScoreMedication(AiMedicationContext med, IReadOnlyList<string> keywords)
+    {
+        var score = 0;
+
+        foreach (var kw in keywords)
+        {
+            if (Contains(med.Name, kw)) score += 10;
+            if (Contains(med.GenericName, kw)) score += 8;
+            if (Contains(med.ActiveIngredients, kw)) score += 8;
+            if (Contains(med.Benefits, kw)) score += 6;
+            if (Contains(med.UsageInstructions, kw)) score += 3;
+            if (Contains(med.Contraindications, kw)) score += 1;
+        }
+
+        return score;
+    }
+
+    private static bool Contains(string? value, string keyword)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<string> ExtractKeywords(string summary, IReadOnlyList<string> conversationMessages)

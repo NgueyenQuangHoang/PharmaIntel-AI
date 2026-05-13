@@ -316,16 +316,6 @@ public class DiagnosticService : IDiagnosticService
             .Take(MAX_SUGGESTED_MEDICATIONS)
             .ToList();
 
-        // Fallback: neu Gemini khong goi y duoc gi -> lay top OTC tu medicationContexts
-        if (selectedMedicationIds.Count == 0)
-        {
-            selectedMedicationIds = medicationContexts
-                .Where(x => !x.IsPrescriptionRequired)
-                .Select(x => x.Id)
-                .Take(MAX_SUGGESTED_MEDICATIONS)
-                .ToList();
-        }
-
         var priority = 1;
         foreach (var medId in selectedMedicationIds)
         {

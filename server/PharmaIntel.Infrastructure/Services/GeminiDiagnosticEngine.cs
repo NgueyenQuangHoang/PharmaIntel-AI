@@ -58,6 +58,8 @@ Quy tac an toan:
 - Khong thay the bac si hoac duoc si.
 - KHONG khuyen nghi thuoc ngoai DANH SACH THUOC HE THONG ben duoi.
 - recommendedMedicationIds CHI duoc lay ID tu danh sach thuoc he thong.
+- Neu DANH SACH THUOC HE THONG rong hoac khong lien quan, recommendedMedicationIds BAT BUOC la mang rong [].
+- Neu khong co thuoc lien quan, advice phai noi ro he thong chua tim thay thuoc phu hop va khuyen hoi bac si/duoc si neu trieu chung keo dai.
 - Neu thuoc IsPrescriptionRequired = true, advice phai noi ro can bac si/duoc si xac nhan.
 - Neu trieu chung nguy hiem (kho tho, dau nguc, sot cao keo dai, mat y thuc, co giat, dau du doi, xuat huyet) -> requiresDoctorVisit = true va riskLevel = ""emergency"".
 - Tra loi bang tieng Viet, ngan gon.
@@ -142,6 +144,7 @@ Quy tac an toan:
 - Khong chan doan chac chan, khong thay the bac si/duoc si.
 - KHONG bia ten thuoc ngoai DANH SACH THUOC HE THONG ben duoi.
 - Chi nhac den thuoc co trong danh sach. Neu thuoc can don, phai noi ro can bac si/duoc si xac nhan.
+- Neu DANH SACH THUOC HE THONG rong hoac khong lien quan, KHONG duoc goi y ten thuoc; hay noi he thong chua tim thay thuoc phu hop.
 - Khong dua lieu dung ca nhan hoa.
 - Neu co dau hieu nguy hiem (kho tho, dau nguc, sot cao keo dai, mat y thuc, co giat, dau du doi), khuyen den co so y te.
 - Tra loi NGAN GON, de hieu, bang tieng Viet, toi da 4 cau.
@@ -178,7 +181,7 @@ Hay phan hoi nhu mot tro ly y te can trong. Tra ve thuan van ban, khong markdown
     private static string BuildMedicationContextText(IReadOnlyList<AiMedicationContext> meds)
     {
         if (meds == null || meds.Count == 0)
-            return "(He thong khong tim thay thuoc lien quan)";
+            return "(He thong khong tim thay thuoc lien quan. Khong duoc goi y thuoc.)";
 
         var sb = new StringBuilder();
         foreach (var m in meds)
