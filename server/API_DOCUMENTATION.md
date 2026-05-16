@@ -1308,14 +1308,17 @@ curl http://localhost:5292/api/users/me -H "Authorization: Bearer $TOKEN"
   "fullName": "Nguyen Van A",
   "email": "test@example.com",
   "avatarUrl": null,
+  "phoneNumber": "0912345678",
+  "dateOfBirth": "1995-05-20",
   "authProvider": "local",
+  "role": "user",
   "isActive": true,
   "createdAt": "2026-04-29T11:29:53",
   "updatedAt": "2026-04-30T08:15:00"
 }
 ```
 
-> **Khac voi `GET /api/auth/me`**: endpoint nay tra them `updatedAt`, dung khi can hien thi phan profile chi tiet. `auth/me` van con dung cho check token nhanh.
+> `phoneNumber` va `dateOfBirth` (DateOnly serialize ra `yyyy-MM-dd`) la `null` neu user chua khai bao. Field nay duoc set qua `PUT /api/users/me` (xem 9.2). Cung tra ve trong `GET /api/auth/me` (UserInfo).
 
 | Status | Khi nao              |
 | ------ | -------------------- |
@@ -1327,18 +1330,21 @@ curl http://localhost:5292/api/users/me -H "Authorization: Bearer $TOKEN"
 
 ### 9.2 `PUT /api/users/me`
 
-Cap nhat thong tin profile (chi `fullName` va `avatarUrl`). Email khong cho doi.
+Cap nhat thong tin profile (`fullName`, `avatarUrl`, `phoneNumber`, `dateOfBirth`). Email khong cho doi.
 
 **Request body**
 
 ```json
 {
   "fullName": "Nguyen Van B",
-  "avatarUrl": "https://cdn.example.com/avatars/1.jpg"
+  "avatarUrl": "https://cdn.example.com/avatars/1.jpg",
+  "phoneNumber": "0912345678",
+  "dateOfBirth": "1995-05-20"
 }
 ```
 
-`avatarUrl` co the gui `null` hoac chuoi rong de xoa avatar.
+- `avatarUrl` co the gui `null` hoac chuoi rong de xoa avatar (FE upload truoc qua `POST /api/users/me/images/upload` o muc 9.6).
+- `phoneNumber` (toi da 20 ky tu) va `dateOfBirth` (format `yyyy-MM-dd`, kieu DateOnly) cung optional - gui `null` hoac empty de xoa.
 
 **Curl**
 
@@ -1346,7 +1352,7 @@ Cap nhat thong tin profile (chi `fullName` va `avatarUrl`). Email khong cho doi.
 curl -X PUT http://localhost:5292/api/users/me \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"fullName":"Nguyen Van B","avatarUrl":"https://cdn.example.com/avatars/1.jpg"}'
+  -d '{"fullName":"Nguyen Van B","avatarUrl":"https://cdn.example.com/avatars/1.jpg","phoneNumber":"0912345678","dateOfBirth":"1995-05-20"}'
 ```
 
 **Response 200**: `UserProfileDto` sau cap nhat (`updatedAt` da refresh).
@@ -1355,7 +1361,7 @@ curl -X PUT http://localhost:5292/api/users/me \
 
 | Status | Khi nao                                                              |
 | ------ | -------------------------------------------------------------------- |
-| 400    | validation (fullName < 2 ky tu, avatarUrl khong phai http/https URL) |
+| 400    | validation (fullName < 2 ky tu, avatarUrl khong phai http/https URL, `dateOfBirth` o tuong lai) |
 | 401    | thieu token                                                          |
 | 404    | user da bi xoa khoi DB                                               |
 
@@ -1465,6 +1471,39 @@ curl -X PUT http://localhost:5292/api/users/me/settings \
 | 400    | `languageCode` khong thuoc `vi/en`                            |
 | 401    | thieu token                                                   |
 | 404    | user da bi xoa khoi DB                                        |
+
+---
+
+### 9.6 `POST /api/users/me/images/upload`
+
+Upload anh dai dien (avatar) cua user dang dang nhap len Cloudinary. Sau khi nhan URL,
+FE goi tiep `PUT /api/users/me` voi `avatarUrl` = URL tra ve.
+
+- **Auth**: JWT (mac dinh - khong yeu cau role admin).
+- **Content-Type**: `multipart/form-data`, field ten `file`.
+- **Gioi han**: extension `.jpg/.jpeg/.png/.webp/.gif`, toi da **5 MB**.
+- **Folder Cloudinary**: `avatars`.
+
+**Curl**
+
+```bash
+curl -X POST http://localhost:5292/api/users/me/images/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/avatar.png"
+```
+
+**Response 200**
+
+```json
+{ "url": "https://res.cloudinary.com/<cloud>/image/upload/v.../avatars/<id>.png" }
+```
+
+**Loi**
+
+| Status | Khi nao                                                  |
+| ------ | -------------------------------------------------------- |
+| 400    | thieu file / extension khong hop le / file > 5 MB        |
+| 401    | thieu token                                              |
 
 ---
 
@@ -1707,6 +1746,71 @@ curl -X DELETE http://localhost:5292/api/prescriptions/1 -H "Authorization: Bear
 ### 10.8 ~~`DELETE /api/prescriptions/{id}/items/{itemId}`~~ (DA XOA)
 
 > Dung `DELETE /api/pharmacist/prescription-items/{itemId}` (role=pharmacist).
+
+---
+
+## 10.W Pharmacists (Ho so duoc si tu van - cong khai + admin CRUD)
+
+Quan ly ho so duoc si hien thi tren trang **Tu van truc tuyen** (`/consultations`).
+Listing va detail la **cong khai** (khong yeu cau JWT). CRUD yeu cau role=`admin`.
+
+### 10.W.1 `GET /api/pharmacists`
+
+Query string (tat ca optional):
+- `page` (default 1), `pageSize` (default 20, max 100)
+- `q` -> tim theo `fullName` (case-insensitive contains)
+- `specialization` -> match chinh xac chuyen khoa
+- `isOnline` (true/false)
+- `isActive` (true/false) -> frontend Consultations dung `isActive=true`
+
+Sort mac dinh: `IsOnline desc, Rating desc, FullName asc`.
+
+Response: `PagedResult<PharmacistDto>` voi cac field:
+- `id`, `fullName`, `licenseNumber`, `specialization`, `phone`, `email`, `avatarUrl`
+- `isOnline`, `isActive`
+- `experienceYears` (int), `about` (nvarchar 1000)
+- `rating` (decimal 3,2 - khoang 0..5), `reviewsCount` (int)
+- `createdAt`, `updatedAt`
+
+### 10.W.2 `GET /api/pharmacists/{id}`
+
+Tra ve `PharmacistDto`. 404 neu khong ton tai.
+
+### 10.W.3 `POST /api/pharmacists` (admin)
+
+Body `PharmacistCreateRequest`:
+```json
+{
+  "fullName": "DS. Nguyen Thanh Huong",
+  "licenseNumber": null,           // null -> auto sinh "PH-yyyyMMdd-xxxx"
+  "specialization": "Duoc lam sang",
+  "phone": null, "email": null,
+  "avatarUrl": "https://...",
+  "isOnline": true, "isActive": true,
+  "experienceYears": 8,
+  "about": "Chuyen tu van ...",
+  "rating": 4.9, "reviewsCount": 128
+}
+```
+
+Validation:
+- `rating` ∈ [0, 5], `experienceYears` ≥ 0, `reviewsCount` ≥ 0 (DB CHECK + service guard).
+- `licenseNumber` duy nhat -> trung tra 409.
+
+201 Created + body = entity sau khi tao.
+
+### 10.W.4 `PUT /api/pharmacists/{id}` (admin)
+
+Body `PharmacistUpdateRequest` (giong Create nhung `licenseNumber` bat buoc).
+Tra ve `PharmacistDto`. 404 neu khong ton tai, 409 neu trung license.
+
+### 10.W.5 `DELETE /api/pharmacists/{id}` (admin)
+
+204 No Content. 409 neu:
+- Ho so dang gan voi User account (`userId IS NOT NULL`)
+- Ho so co `PrescriptionDocument` da xac minh hoac `PharmacistChatSession` (mat history)
+
+-> Khuyen nghi dung `isActive=false` thay vi xoa.
 
 ---
 

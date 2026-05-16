@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PharmaIntel.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PharmaIntel.Infrastructure.Data;
 namespace PharmaIntel.Infrastructure.Migrations
 {
     [DbContext(typeof(PharmaIntelDbContext))]
-    partial class PharmaIntelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260516032733_AddPharmacistConsultationFields")]
+    partial class AddPharmacistConsultationFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2230,10 +2233,6 @@ namespace PharmaIntel.Infrastructure.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
-                    b.Property<DateOnly?>("DateOfBirth")
-                        .HasColumnType("date")
-                        .HasColumnName("date_of_birth");
-
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -2262,11 +2261,6 @@ namespace PharmaIntel.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)")
                         .HasColumnName("password_hash");
-
-                    b.Property<string>("PhoneNumber")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("phone_number");
 
                     b.Property<string>("Role")
                         .IsRequired()

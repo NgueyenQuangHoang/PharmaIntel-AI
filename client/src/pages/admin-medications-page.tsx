@@ -3,7 +3,7 @@
 // Dùng medicationsApi (đã extend với create/update/delete) + categoriesApi để
 // load category options cho dropdown.
 // =============================================================================
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AdminPageShell } from '@/features/admin/components/AdminPageShell'
 import { DataTable, type DataTableColumn } from '@/features/admin/components/DataTable'
 import { ConfirmDialog } from '@/features/admin/components/ConfirmDialog'
@@ -372,6 +372,9 @@ function MedicationFormModal({
   })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function set<K extends keyof MedicationUpsertRequest>(k: K, v: MedicationUpsertRequest[K]) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -399,6 +402,24 @@ function MedicationFormModal({
       setErr(ex.response?.data?.detail ?? ex.response?.data?.title ?? 'Lưu không thành công')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadErr(null)
+    try {
+      const url = await medicationsApi.uploadImage(file)
+      set('imageUrl', url)
+    } catch (error: unknown) {
+      const ex = error as { response?: { data?: { detail?: string } }; message?: string }
+      setUploadErr(ex.response?.data?.detail ?? ex.message ?? 'Upload thất bại')
+    } finally {
+      setUploading(false)
+      // Reset input để có thể chọn lại cùng file
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -475,7 +496,70 @@ function MedicationFormModal({
             <Input value={form.dosage ?? ''} onChange={setStr('dosage')} />
           </Field>
           <Field label="URL ảnh">
-            <Input value={form.imageUrl ?? ''} onChange={setStr('imageUrl')} />
+            <div className="space-y-2">
+              {/* Preview ảnh hiện tại */}
+              {form.imageUrl && (
+                <div className="relative w-full h-32 rounded-lg overflow-hidden border border-outline-variant/40 bg-surface-container-low">
+                  <img
+                    src={form.imageUrl}
+                    alt="preview"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      ;(e.target as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => set('imageUrl', null)}
+                    className="absolute top-1 right-1 p-1 rounded-full bg-error text-white hover:bg-error/80"
+                    title="Xóa ảnh"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                  </button>
+                </div>
+              )}
+              {/* Upload button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                disabled={uploading || busy}
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-outline-variant/60 bg-surface-container-low px-3 py-2 text-sm text-on-surface-variant hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {uploading ? (
+                  <>
+                    <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                    Đang upload...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">upload</span>
+                    {form.imageUrl ? 'Đổi ảnh' : 'Chọn ảnh (JPG, PNG, WebP, GIF · max 5MB)'}
+                  </>
+                )}
+              </button>
+              {uploadErr && (
+                <p className="text-xs text-error">{uploadErr}</p>
+              )}
+              {/* Fallback: nhập URL thủ công */}
+              <details className="group">
+                <summary className="text-xs text-on-surface-variant cursor-pointer hover:text-primary select-none">
+                  hoặc nhập URL ảnh trực tiếp
+                </summary>
+                <Input
+                  className="mt-1"
+                  value={form.imageUrl ?? ''}
+                  onChange={setStr('imageUrl')}
+                  placeholder="https://..."
+                />
+              </details>
+            </div>
           </Field>
         </div>
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">

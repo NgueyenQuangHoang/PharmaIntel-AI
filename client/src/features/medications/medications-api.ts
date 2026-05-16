@@ -51,4 +51,14 @@ export const medicationsApi = {
   delete: async (id: number): Promise<void> => {
     await httpClient.delete(`/medications/${id}`)
   },
+  /** Upload ảnh sản phẩm lên Cloudinary qua backend. Trả về URL ảnh. */
+  uploadImage: async (file: File): Promise<string> => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await httpClient.post<{ url: string }>('/admin/images/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data.url
+  },
 }
+

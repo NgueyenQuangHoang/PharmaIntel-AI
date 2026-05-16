@@ -20,6 +20,8 @@ export type UserInfo = {
   fullName: string
   email: string
   avatarUrl: string | null
+  phoneNumber: string | null
+  dateOfBirth: string | null  // ISO yyyy-MM-dd (DateOnly serialized)
   authProvider: string
   role: string
   isActive: boolean

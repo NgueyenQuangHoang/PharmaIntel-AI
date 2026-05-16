@@ -114,6 +114,12 @@ export function Header() {
             Chẩn đoán AI
           </NavLink>
           <NavLink
+            to="/consultations"
+            className={({ isActive }) => `font-manrope tracking-tight font-semibold duration-200 ease-in-out ${isActive ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-600 pb-1' : 'text-slate-600 dark:text-slate-400 hover:text-blue-500'}`}
+          >
+            Tư vấn
+          </NavLink>
+          <NavLink
             to="/medicine"
             className={({ isActive }) => `font-manrope tracking-tight font-semibold duration-200 ease-in-out ${isActive ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-600 pb-1' : 'text-slate-600 dark:text-slate-400 hover:text-blue-500'}`}
           >

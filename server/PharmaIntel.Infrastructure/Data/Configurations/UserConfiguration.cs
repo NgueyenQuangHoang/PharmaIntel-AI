@@ -19,6 +19,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(e => e.Email).HasMaxLength(255).IsRequired();
         builder.Property(e => e.PasswordHash).HasMaxLength(255);
         builder.Property(e => e.AvatarUrl).HasMaxLength(500);
+        builder.Property(e => e.PhoneNumber).HasMaxLength(20);
+        builder.Property(e => e.DateOfBirth).HasColumnType("date");
         builder.Property(e => e.AuthProvider).HasMaxLength(20).IsRequired().HasDefaultValue("local");
         builder.Property(e => e.AuthProviderId).HasMaxLength(255);
         builder.Property(e => e.Role).HasMaxLength(20).IsRequired().HasDefaultValue("user");

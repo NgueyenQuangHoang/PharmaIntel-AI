@@ -40,8 +40,13 @@ public class UserService : IUserService
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct)
                    ?? throw new NotFoundException("nguoi dung", userId);
 
+        if (req.DateOfBirth.HasValue && req.DateOfBirth.Value > DateOnly.FromDateTime(DateTime.UtcNow))
+            throw new ValidationException("dateOfBirth", "Ngay sinh khong duoc o tuong lai");
+
         user.FullName = req.FullName.Trim();
         user.AvatarUrl = string.IsNullOrWhiteSpace(req.AvatarUrl) ? null : req.AvatarUrl.Trim();
+        user.PhoneNumber = string.IsNullOrWhiteSpace(req.PhoneNumber) ? null : req.PhoneNumber.Trim();
+        user.DateOfBirth = req.DateOfBirth;
         user.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -120,6 +125,8 @@ public class UserService : IUserService
         FullName = u.FullName,
         Email = u.Email,
         AvatarUrl = u.AvatarUrl,
+        PhoneNumber = u.PhoneNumber,
+        DateOfBirth = u.DateOfBirth,
         AuthProvider = u.AuthProvider,
         Role = u.Role,
         IsActive = u.IsActive,

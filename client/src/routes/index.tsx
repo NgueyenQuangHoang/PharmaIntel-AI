@@ -14,6 +14,8 @@ import { AdminUsersPage } from '@/pages/admin-users-page';
 import { AdminCategoriesPage } from '@/pages/admin-categories-page';
 import { AdminMedicationsPage } from '@/pages/admin-medications-page';
 import { AdminOrdersPage } from '@/pages/admin-orders-page';
+import { AdminBanksPage } from '@/pages/admin-banks-page';
+import { AdminPharmacistsPage } from '@/pages/admin-pharmacists-page';
 import { AdminRagKnowledgePage } from '@/pages/admin-rag-knowledge-page';
 import { AdminRagFeedbackPage } from '@/pages/admin-rag-feedback-page';
 import { AdminRagDashboardPage } from '@/pages/admin-rag-dashboard-page';
@@ -22,6 +24,8 @@ import { MedicationRemindersPage } from '@/pages/medication-reminders-page';
 import { PrescriptionDetailPage } from '@/pages/prescription-detail-page';
 import { PharmacistDashboardPage } from '@/pages/pharmacist-dashboard-page';
 import { PharmacistPrescriptionDetailPage } from '@/pages/pharmacist-prescription-detail-page';
+import { ConsultationsPage } from '@/pages/consultations-page';
+import { NotFoundPage } from '@/pages/not-found-page';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -68,6 +72,7 @@ export function AppRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/diagnostic" element={<DiagnosticPage />} />
           <Route path="/diagnostic/result" element={<DiagnosticResultPage />} />
+          <Route path="/consultations" element={<ConsultationsPage />} />
           <Route path="/medicine" element={<MedicineCabinetPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
@@ -85,6 +90,8 @@ export function AppRoutes() {
           <Route path="/admin/categories" element={<AdminCategoriesPage />} />
           <Route path="/admin/medications" element={<AdminMedicationsPage />} />
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/admin/pharmacists" element={<AdminPharmacistsPage />} />
+          <Route path="/admin/banks" element={<AdminBanksPage />} />
           <Route path="/admin/rag/dashboard" element={<AdminRagDashboardPage />} />
           <Route path="/admin/rag/knowledge" element={<AdminRagKnowledgePage />} />
           <Route path="/admin/rag/feedback" element={<AdminRagFeedbackPage />} />
@@ -95,6 +102,9 @@ export function AppRoutes() {
           <Route path="/pharmacist" element={<PharmacistDashboardPage />} />
           <Route path="/pharmacist/prescriptions/:id" element={<PharmacistPrescriptionDetailPage />} />
         </Route>
+
+        {/* 404 Fallback */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

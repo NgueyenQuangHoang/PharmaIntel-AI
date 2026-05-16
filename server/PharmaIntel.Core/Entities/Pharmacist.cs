@@ -21,6 +21,12 @@ public class Pharmacist
     public string? AvatarUrl { get; set; }
     public bool IsOnline { get; set; }
     public bool IsActive { get; set; } = true;
+
+    // Cac field hien thi tren trang Tu van truc tuyen (cong khai).
+    public int ExperienceYears { get; set; }
+    public string? About { get; set; }
+    public decimal Rating { get; set; }       // 0.0 - 5.0
+    public int ReviewsCount { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

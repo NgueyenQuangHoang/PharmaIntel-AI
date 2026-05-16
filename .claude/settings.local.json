@@ -10,7 +10,11 @@
       "Bash(dotnet ef *)",
       "Bash(npm i *)",
       "Bash(tasklist //FI \"PID eq 17112\")",
-      "Bash(tasklist //FI \"IMAGENAME eq PharmaIntel.API.exe\")"
+      "Bash(tasklist //FI \"IMAGENAME eq PharmaIntel.API.exe\")",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -nA 2 \"Property<bool>\\(\\\\\"IsOnline\" PharmaIntel.Infrastructure/Migrations/PharmaIntelDbContextModelSnapshot.cs)"
     ]
   }
 }

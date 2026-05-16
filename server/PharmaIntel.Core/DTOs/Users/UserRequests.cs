@@ -9,6 +9,8 @@ public class UpdateUserProfileRequest
 {
     public string FullName { get; set; } = string.Empty;
     public string? AvatarUrl { get; set; }
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
 }
 
 public class ChangePasswordRequest

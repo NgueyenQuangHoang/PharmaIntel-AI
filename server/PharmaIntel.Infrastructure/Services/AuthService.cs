@@ -141,6 +141,8 @@ public class AuthService : IAuthService
         FullName = user.FullName,
         Email = user.Email,
         AvatarUrl = user.AvatarUrl,
+        PhoneNumber = user.PhoneNumber,
+        DateOfBirth = user.DateOfBirth,
         AuthProvider = user.AuthProvider,
         Role = user.Role,
         IsActive = user.IsActive,

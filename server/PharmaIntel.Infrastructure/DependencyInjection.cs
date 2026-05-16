@@ -29,9 +29,11 @@ public static class DependencyInjection
         services.Configure<GeminiSettings>(config.GetSection("Gemini"));
         services.Configure<BankQrSettings>(config.GetSection("BankQr"));
         services.Configure<QdrantSettings>(config.GetSection("Qdrant"));
+        services.Configure<CloudinarySettings>(config.GetSection("Cloudinary"));
         services.Configure<EmbeddingSettings>(config.GetSection("Embedding"));
 
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddScoped<IImageUploadService, CloudinaryImageUploadService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IAuthService, AuthService>();
@@ -43,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<IAddressService, AddressService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPrescriptionService, PrescriptionService>();
+        services.AddScoped<IPharmacistService, PharmacistService>();
         services.AddScoped<IPharmacistPrescriptionVerificationService, PharmacistPrescriptionVerificationService>();
         services.AddScoped<IPharmacistPrescriptionItemService, PharmacistPrescriptionItemService>();
         services.AddScoped<IMedicationReminderService, MedicationReminderService>();

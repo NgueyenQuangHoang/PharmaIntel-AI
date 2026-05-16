@@ -102,6 +102,12 @@ const authSlice = createSlice({
     clearError(state) {
       state.error = null
     },
+    // Patch user state sau khi update profile thanh cong, khong can refetch /auth/me.
+    userUpdated(state, action: PayloadAction<Partial<UserInfo>>) {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload }
+      }
+    },
   },
   extraReducers: (builder) => {
     const handleAuthSuccess = (state: AuthState, action: PayloadAction<AuthResponse>) => {
@@ -152,5 +158,5 @@ const authSlice = createSlice({
   },
 })
 
-export const { logout, clearError } = authSlice.actions
+export const { logout, clearError, userUpdated } = authSlice.actions
 export default authSlice.reducer
