@@ -28,6 +28,7 @@ RUN dotnet restore PharmaIntel.API/PharmaIntel.API.csproj
 
 # Copy toan bo source roi publish.
 COPY . .
+RUN mkdir -p /docs && cp docs/rag-evaluation-cases.json /docs/rag-evaluation-cases.json
 RUN dotnet publish PharmaIntel.API/PharmaIntel.API.csproj \
     -c Release \
     -o /app/publish \
@@ -36,6 +37,12 @@ RUN dotnet publish PharmaIntel.API/PharmaIntel.API.csproj \
 
 # ---- Final runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Image mac dinh chay duoi user `app` (UID 1654) - khong root.
