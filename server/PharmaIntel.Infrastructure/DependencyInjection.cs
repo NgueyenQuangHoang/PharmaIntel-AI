@@ -26,6 +26,7 @@ public static class DependencyInjection
                 sql => sql.MigrationsAssembly("PharmaIntel.Infrastructure")));
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
+        services.Configure<GoogleAuthSettings>(config.GetSection("Google"));
         services.Configure<GeminiSettings>(config.GetSection("Gemini"));
         services.Configure<BankQrSettings>(config.GetSection("BankQr"));
         services.Configure<QdrantSettings>(config.GetSection("Qdrant"));

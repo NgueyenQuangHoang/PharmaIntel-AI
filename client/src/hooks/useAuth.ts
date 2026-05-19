@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from '@/hooks/redux'
 import {
   fetchMeThunk,
   loginThunk,
+  loginWithGoogleThunk,
   logoutThunk,
   registerThunk,
 } from '@/features/auth/auth-slice'
@@ -17,6 +18,10 @@ export function useAuth() {
 
   const login = useCallback(
     (body: LoginRequest) => dispatch(loginThunk(body)).unwrap(),
+    [dispatch],
+  )
+  const loginWithGoogle = useCallback(
+    (idToken: string) => dispatch(loginWithGoogleThunk(idToken)).unwrap(),
     [dispatch],
   )
   const register = useCallback(
@@ -33,6 +38,7 @@ export function useAuth() {
     error,
     isAuthenticated: status === 'authenticated' && !!token,
     login,
+    loginWithGoogle,
     register,
     fetchMe,
     logout,

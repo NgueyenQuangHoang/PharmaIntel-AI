@@ -3,7 +3,7 @@
 Ghi lai cac viec da lam o phan ops (DevOps / cau hinh / trien khai).
 File nay duoc CAP NHAT MOI khi co thay doi ops moi.
 
-> Cap nhat lan cuoi: 2026-05-07
+> Cap nhat lan cuoi: 2026-05-19
 > Trang thai: Phase 1-8 hoan tat.
 
 ---
@@ -408,6 +408,49 @@ git push origin v1.0.0
   - Reverse proxy (Nginx/Traefik/Caddy) + TLS truoc `web` va `api`.
   - Khong expose `db` ra host.
   - JWT key & Gemini key qua secret manager (Azure Key Vault, AWS Secrets Manager).
+
+---
+
+## 2026-05-19 - Google Sign-In (OAuth)
+
+**Muc tieu:** Cho phep user dang nhap / dang ky bang tai khoan Google.
+
+### Backend
+- Them NuGet `Google.Apis.Auth` (v1.69.0) trong `PharmaIntel.Infrastructure`.
+- DTO moi: `PharmaIntel.Core/DTOs/Auth/GoogleLoginRequest.cs` (`{ IdToken }`).
+- `IAuthService.LoginWithGoogleAsync(...)` + impl trong `AuthService`:
+  - `GoogleJsonWebSignature.ValidateAsync(idToken, { Audience = ClientId })`.
+  - Tim user theo `(AuthProvider="google", AuthProviderId=sub)` -> fallback email.
+  - Tao moi neu chua co (AuthProvider="google", khong co PasswordHash).
+  - Link tai khoan local cung email -> "google" (giu PasswordHash).
+- Endpoint moi: `POST /api/auth/google` trong `AuthController`.
+- Options moi: `GoogleAuthSettings { ClientId }` -> registered o `DependencyInjection`.
+
+### Cau hinh
+- `appsettings.json` them section `"Google": { "ClientId": "" }`.
+- Dev: `dotnet user-secrets set "Google:ClientId" "<web-client-id>"` (da set local).
+- Prod: env var `Google__ClientId`.
+- **KHONG can client_secret** cho luong web ID Token.
+
+### Frontend
+- Cai `@react-oauth/google`.
+- `client/src/app/providers.tsx` wrap `<GoogleOAuthProvider clientId={...}>` (chi bat khi co `VITE_GOOGLE_CLIENT_ID`).
+- `auth-api.ts`: `loginWithGoogle(idToken) -> POST /auth/google`.
+- `auth-slice.ts`: `loginWithGoogleThunk` + extraReducer.
+- `useAuth.ts`: them `loginWithGoogle`.
+- `LoginForm.tsx`: thay nut Google disabled bang `<GoogleLogin onSuccess>` -> credential -> `loginWithGoogle(...)`.
+- `client/.env.example`: them `VITE_GOOGLE_CLIENT_ID=`.
+
+### Google Cloud Console - cau hinh OAuth Web Client
+- Project: `pharmaintel-496801`.
+- Authorized JavaScript origins: `https://medicalpharmal.com` (prod).
+  Dev local can them: `http://localhost:5173`, `http://localhost:3000`.
+- Authorized redirect URIs (cho flow code) hien co: `https://medicalpharmal.com`, `https://medicalpharmal.com/login`.
+  Luong hien tai dung ID Token (One Tap / GIS button) **khong can** redirect URI - nhung neu sau nay chuyen sang code flow can them.
+
+### Bao mat / luu y
+- Client secret tu Google Cloud Console **khong dung** trong luong hien tai. Neu da bi lo, revoke + tao lai.
+- Backend bat buoc verify audience claim cua ID token = `Google:ClientId` -> chong token tu app khac.
 
 ---
 

@@ -292,6 +292,52 @@ curl -X POST http://localhost:5292/api/auth/login \
 
 ---
 
+### 2.2.1 `POST /api/auth/google`
+
+Dang nhap / dang ky bang Google ID Token. Frontend lay `credential` tu Google Identity Services (nut "Sign in with Google") roi gui len.
+
+**Hanh vi**
+- Backend verify ID token voi Google (audience phai match `Google:ClientId`).
+- Tim user theo `AuthProviderId` (Google `sub`) hoac fallback theo email.
+- Neu chua co -> tao user moi (`AuthProvider="google"`, khong co PasswordHash).
+- Neu da co user `local` cung email -> link sang Google, giu nguyen PasswordHash.
+- Tra ve `AuthResponse` giong nhu /login.
+
+**Request body**
+
+```json
+{
+  "idToken": "eyJhbGciOiJSUzI1NiIs..."
+}
+```
+
+**Curl**
+
+```bash
+curl -X POST http://localhost:5292/api/auth/google \
+  -H "Content-Type: application/json" \
+  -d '{"idToken":"<google-id-token>"}'
+```
+
+**Response 200** — giong nhu login response.
+
+**Response 401** (token khong hop le / khong verify duoc / email Google chua verified)
+
+```json
+{
+  "title": "Chua xac thuc",
+  "status": 401,
+  "detail": "Google token khong hop le: ...",
+  "errorType": "unauthorized"
+}
+```
+
+**Cau hinh backend**: `Google:ClientId` (Web OAuth Client ID tu Google Cloud Console). Dat qua User Secrets (dev) hoac env var `Google__ClientId` (prod).
+
+**Cau hinh frontend**: `VITE_GOOGLE_CLIENT_ID` trong `client/.env` - cung Client ID voi backend.
+
+---
+
 ### 2.3 `GET /api/auth/me`
 
 Lay thong tin user tu JWT (claim `sub` = user id). **Yeu cau Bearer token**.

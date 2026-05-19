@@ -14,6 +14,10 @@ export const authApi = {
     const res = await httpClient.post<AuthResponse>('/auth/login', body)
     return res.data
   },
+  loginWithGoogle: async (idToken: string): Promise<AuthResponse> => {
+    const res = await httpClient.post<AuthResponse>('/auth/google', { idToken })
+    return res.data
+  },
   register: async (body: RegisterRequest): Promise<AuthResponse> => {
     const res = await httpClient.post<AuthResponse>('/auth/register', body)
     return res.data

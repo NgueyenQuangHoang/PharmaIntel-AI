@@ -45,6 +45,15 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    // POST /api/auth/google - dang nhap / dang ky bang Google ID Token
+    // Frontend lay credential tu Google Identity Services roi gui len day.
+    [HttpPost("google")]
+    public async Task<ActionResult<AuthResponse>> LoginWithGoogle([FromBody] GoogleLoginRequest request, CancellationToken ct)
+    {
+        var result = await _auth.LoginWithGoogleAsync(request, ClientIp(), UserAgent(), ct);
+        return Ok(result);
+    }
+
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshRequest request, CancellationToken ct)
     {

@@ -49,6 +49,17 @@ export const loginThunk = createAsyncThunk<AuthResponse, LoginRequest, { rejectV
   },
 )
 
+export const loginWithGoogleThunk = createAsyncThunk<AuthResponse, string, { rejectValue: string }>(
+  'auth/loginWithGoogle',
+  async (idToken, { rejectWithValue }) => {
+    try {
+      return await authApi.loginWithGoogle(idToken)
+    } catch (err) {
+      return rejectWithValue(extractError(err, 'Dang nhap Google that bai'))
+    }
+  },
+)
+
 export const registerThunk = createAsyncThunk<AuthResponse, RegisterRequest, { rejectValue: string }>(
   'auth/register',
   async (body, { rejectWithValue }) => {
@@ -128,6 +139,16 @@ const authSlice = createSlice({
       .addCase(loginThunk.rejected, (state, action) => {
         state.status = 'error'
         state.error = action.payload ?? 'Dang nhap that bai'
+      })
+
+      .addCase(loginWithGoogleThunk.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(loginWithGoogleThunk.fulfilled, handleAuthSuccess)
+      .addCase(loginWithGoogleThunk.rejected, (state, action) => {
+        state.status = 'error'
+        state.error = action.payload ?? 'Dang nhap Google that bai'
       })
 
       .addCase(registerThunk.pending, (state) => {
