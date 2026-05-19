@@ -24,6 +24,12 @@ RUN npm ci
 ARG VITE_API_URL=http://localhost:5292/api
 ENV VITE_API_URL=$VITE_API_URL
 
+# Google OAuth Web Client ID (lay tu Google Cloud Console). Truyen luc build:
+#   docker build --build-arg VITE_GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com ./client
+# Trong compose: docker-compose.yml -> services.web.build.args.
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
 COPY . .
 RUN npm run build
 

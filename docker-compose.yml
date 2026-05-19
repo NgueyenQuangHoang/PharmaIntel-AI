@@ -62,6 +62,8 @@ services:
       Jwt__ExpireMinutes: "60"
       Gemini__ApiKey: ${GEMINI_API_KEY}
       Gemini__Enabled: "true"
+      # Google OAuth Web Client ID - de verify ID Token tu frontend (POST /api/auth/google).
+      Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       # CORS: danh sach origin frontend (CSV). Override sach se appsettings.json,
       # mac dinh dung port web da expose ra host.
       Cors__AllowedOriginsCsv: ${WEB_ORIGINS:-http://localhost:${WEB_PORT:-5173}}
@@ -88,6 +90,7 @@ services:
         # Browser cua dev goi vao api da expose ra host port - KHONG dung
         # ten service `api` (browser khong vao duoc mang noi bo cua compose).
         VITE_API_URL: ${VITE_API_URL:-http://localhost:5292/api}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     image: pharmaintel-web:latest
     container_name: pharmaintel-web
     depends_on:
