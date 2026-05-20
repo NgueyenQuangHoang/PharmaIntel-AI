@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import { HomePage } from '@/pages/home-page';
 import { DiagnosticPage } from '@/pages/diagnostic-page';
 import { DiagnosticResultPage } from '@/pages/diagnostic-result-page';
@@ -26,6 +27,7 @@ import { PharmacistDashboardPage } from '@/pages/pharmacist-dashboard-page';
 import { PharmacistPrescriptionDetailPage } from '@/pages/pharmacist-prescription-detail-page';
 import { ConsultationsPage } from '@/pages/consultations-page';
 import { NotFoundPage } from '@/pages/not-found-page';
+import { AboutPage } from '@/pages/about-page';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -59,9 +61,20 @@ function PharmacistLayoutWrapper() {
   );
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 export function AppRoutes() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Isolated route for Login without global layout */}
         <Route path="/login" element={<LoginPage />} />
@@ -75,6 +88,7 @@ export function AppRoutes() {
           <Route path="/consultations" element={<ConsultationsPage />} />
           <Route path="/medicine" element={<MedicineCabinetPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersListPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />

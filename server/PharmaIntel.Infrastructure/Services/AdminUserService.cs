@@ -189,6 +189,21 @@ public class AdminUserService : IAdminUserService
 
         user.IsActive = req.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
+
+        // Khi khoa user: revoke toan bo refresh token de tranh truong hop user dung
+        // refresh token cu lay access token moi. Ket hop voi JwtBearerEvents.OnTokenValidated
+        // (check IsActive moi request) -> user bi khoa se bi day ve /login ngay lap tuc.
+        if (!req.IsActive)
+        {
+            var now = DateTime.UtcNow;
+            await _db.RefreshTokens
+                .Where(t => t.UserId == targetUserId && t.RevokedAt == null && t.ExpiresAt > now)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.RevokedAt, now)
+                    .SetProperty(t => t.RevokedReason, "account_locked"),
+                    ct);
+        }
+
         await _db.SaveChangesAsync(ct);
 
         return await GetByIdAsync(targetUserId, ct);

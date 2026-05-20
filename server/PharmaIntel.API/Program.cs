@@ -47,6 +47,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             // [Authorize(Roles="admin")] biet doc claim nay.
             RoleClaimType = "role"
         };
+
+        // Khi admin khoa user (IsActive=false), access token cu van con han nen
+        // van goi API duoc. Hook nay kiem tra IsActive ngay sau khi token validate
+        // -> fail auth -> tra 401 -> frontend interceptor redirect /login.
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnTokenValidated = async ctx =>
+            {
+                var sub = ctx.Principal?.FindFirst("sub")?.Value;
+                if (!long.TryParse(sub, out var userId))
+                {
+                    ctx.Fail("invalid_user");
+                    return;
+                }
+                var db = ctx.HttpContext.RequestServices.GetRequiredService<PharmaIntelDbContext>();
+                var isActive = await db.Users.AsNoTracking()
+                    .Where(u => u.Id == userId)
+                    .Select(u => (bool?)u.IsActive)
+                    .FirstOrDefaultAsync(ctx.HttpContext.RequestAborted);
+                if (isActive != true)
+                    ctx.Fail("account_disabled");
+            }
+        };
     });
 builder.Services.AddAuthorization();
 

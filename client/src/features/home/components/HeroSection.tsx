@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export function HeroSection() {
   return (
     <section className="relative min-h-[870px] flex items-center overflow-hidden bg-gradient-to-br from-primary to-primary-container px-8 py-20">
@@ -19,12 +21,12 @@ export function HeroSection() {
             Phân tích triệu chứng tức thì với độ chính xác lâm sàng cao. PharmaIntel kết nối dữ liệu y khoa khổng lồ để mang lại giải pháp chăm sóc sức khỏe cá nhân hóa.
           </p>
           <div className="flex flex-wrap gap-4">
-            <button className="bg-gradient-to-r from-secondary-fixed to-secondary-fixed-dim text-on-secondary-fixed font-bold py-4 px-10 rounded-full text-lg shadow-xl shadow-primary/20 hover:scale-105 transition-transform">
+            <Link to="/diagnostic" className="inline-block text-center bg-gradient-to-r from-secondary-fixed to-secondary-fixed-dim text-on-secondary-fixed font-bold py-4 px-10 rounded-full text-lg shadow-xl shadow-primary/20 hover:scale-105 transition-transform">
               Chẩn đoán ngay
-            </button>
-            <button className="glass-panel text-on-surface font-semibold py-4 px-10 rounded-full border border-white/30 hover:bg-white transition-colors">
+            </Link>
+            <Link to="/about" className="inline-block text-center glass-panel text-on-surface font-semibold py-4 px-10 rounded-full border border-white/30 hover:bg-white transition-colors">
               Tìm hiểu thêm
-            </button>
+            </Link>
           </div>
         </div>
         <div className="relative group">

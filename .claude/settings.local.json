@@ -15,7 +15,8 @@
       "Bash(git pull *)",
       "Bash(echo \"exit=$?\")",
       "Bash(grep -nA 2 \"Property<bool>\\(\\\\\"IsOnline\" PharmaIntel.Infrastructure/Migrations/PharmaIntelDbContextModelSnapshot.cs)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npx skills *)"
     ]
   }
 }
