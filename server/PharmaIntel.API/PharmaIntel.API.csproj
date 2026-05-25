@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\docs\rag-evaluation-cases.json" Link="docs\rag-evaluation-cases.json">
+    <Content Include="..\docs\rag-evaluation-cases.json" Link="docs\rag-evaluation-cases.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

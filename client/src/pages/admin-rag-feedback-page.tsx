@@ -35,7 +35,9 @@ export function AdminRagFeedbackPage() {
       <div className="mb-4 flex flex-wrap gap-2">
         <select
           value={rating ?? ''}
-          onChange={(e) => setRating((e.target.value || undefined) as any)}
+          onChange={(e) =>
+            setRating((e.target.value || undefined) as 'thumbs_up' | 'thumbs_down' | undefined)
+          }
           className="rounded-full border border-outline-variant/40 bg-surface px-4 py-2 text-sm"
         >
           <option value="">Tất cả rating</option>

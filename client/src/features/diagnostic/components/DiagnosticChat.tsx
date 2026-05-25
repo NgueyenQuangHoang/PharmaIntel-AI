@@ -87,6 +87,7 @@ export function DiagnosticChat() {
     );
     const remaining = optimisticMessages.filter((m) => !serverUserContents.has(m.content));
     if (remaining.length !== optimisticMessages.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOptimisticMessages(remaining);
     }
   }, [serverMessages, optimisticMessages]);
