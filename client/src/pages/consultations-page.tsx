@@ -2,8 +2,10 @@
 // ConsultationsPage - Trang Tu Van Duoc Si (load danh sach tu API /pharmacists).
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import { pharmacistsApi } from '@/features/pharmacists/pharmacists-api';
 import type { Pharmacist } from '@/features/pharmacists/types';
+import { consultationsApi } from '@/features/consultations/consultations-api';
 
 const SPECIALTIES = ['Tất cả', 'Dược lâm sàng', 'Dược liệu & Cổ truyền', 'Dinh dưỡng', 'Dược lý'];
 
@@ -17,6 +19,9 @@ export function ConsultationsPage() {
   const [selectedPharmacist, setSelectedPharmacist] = useState<Pharmacist | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingForm, setBookingForm] = useState({ date: '', time: '', note: '' });
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingToast, setBookingToast] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,14 +64,50 @@ export function ConsultationsPage() {
     setIsBookingModalOpen(false);
     setSelectedPharmacist(null);
     setBookingForm({ date: '', time: '', note: '' });
+    setBookingError(null);
+    setBookingSubmitting(false);
   };
 
-  const handleConfirmBooking = (e: React.FormEvent) => {
+  const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Đã gửi yêu cầu tư vấn tới ${selectedPharmacist?.fullName} vào ${bookingForm.time} ngày ${bookingForm.date}.`);
-    handleCloseBooking();
-    // TODO (Backend): Call API to create a consultation session
-    // POST /api/consultations { pharmacistId, date, time, note }
+    if (!selectedPharmacist) return;
+    setBookingError(null);
+
+    // Gop date + time thanh ISO theo gio local roi gui len server.
+    const scheduledAt = new Date(`${bookingForm.date}T${bookingForm.time}:00`);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      setBookingError('Ngày hoặc giờ không hợp lệ.');
+      return;
+    }
+    if (scheduledAt.getTime() <= Date.now()) {
+      setBookingError('Thời gian tư vấn phải sau thời điểm hiện tại.');
+      return;
+    }
+
+    setBookingSubmitting(true);
+    try {
+      await consultationsApi.create({
+        pharmacistId: selectedPharmacist.id,
+        scheduledAt: scheduledAt.toISOString(),
+        note: bookingForm.note.trim() || null,
+      });
+      const name = selectedPharmacist.fullName;
+      handleCloseBooking();
+      setBookingToast(`Đã gửi yêu cầu tư vấn tới ${name}. Dược sĩ sẽ phản hồi sớm.`);
+      window.setTimeout(() => setBookingToast(null), 4000);
+    } catch (err: unknown) {
+      let message = 'Không gửi được yêu cầu, vui lòng thử lại.';
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data as { detail?: string; title?: string; message?: string } | undefined;
+        if (err.response?.status === 409) {
+          message = data?.detail ?? 'Khung giờ này đã có lịch tư vấn khác, vui lòng chọn thời gian khác.';
+        } else {
+          message = data?.detail ?? data?.title ?? data?.message ?? err.message ?? message;
+        }
+      }
+      setBookingError(message);
+      setBookingSubmitting(false);
+    }
   };
 
   return (
@@ -193,6 +234,12 @@ export function ConsultationsPage() {
         )}
       </section>
 
+      {bookingToast && (
+        <div className="fixed top-6 right-6 z-50 max-w-sm p-4 rounded-2xl bg-primary text-on-primary shadow-lg font-semibold text-sm animate-in fade-in slide-in-from-top-4">
+          {bookingToast}
+        </div>
+      )}
+
       {/* Booking Modal */}
       {isBookingModalOpen && selectedPharmacist && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -208,6 +255,11 @@ export function ConsultationsPage() {
             </div>
 
             <div className="p-6">
+              {bookingError && (
+                <div className="mb-4 p-3 rounded-xl bg-error-container text-on-error-container text-sm font-medium">
+                  {bookingError}
+                </div>
+              )}
               <form id="booking-form" onSubmit={handleConfirmBooking} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -250,16 +302,18 @@ export function ConsultationsPage() {
               <button
                 type="button"
                 onClick={handleCloseBooking}
-                className="px-5 py-2.5 rounded-xl font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
+                disabled={bookingSubmitting}
+                className="px-5 py-2.5 rounded-xl font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 form="booking-form"
-                className="px-6 py-2.5 rounded-xl font-semibold bg-primary text-on-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all"
+                disabled={bookingSubmitting}
+                className="px-6 py-2.5 rounded-xl font-semibold bg-primary text-on-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Xác nhận
+                {bookingSubmitting ? 'Đang gửi...' : 'Xác nhận'}
               </button>
             </div>
           </div>

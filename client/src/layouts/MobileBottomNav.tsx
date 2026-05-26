@@ -15,6 +15,11 @@ export function MobileBottomNav() {
         <span className="material-symbols-outlined" style={path.startsWith('/diagnostic') ? { fontVariationSettings: "'FILL' 1" } : {}}>clinical_notes</span>
         <span className={`text-[10px] ${path.startsWith('/diagnostic') ? 'font-bold' : 'font-medium'}`}>Chẩn đoán</span>
       </Link>
+
+      <Link to="/consultations" className={`flex flex-col items-center gap-1 ${path.startsWith('/consultations') ? 'text-blue-700 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+        <span className="material-symbols-outlined" style={path.startsWith('/consultations') ? { fontVariationSettings: "'FILL' 1" } : {}}>chat</span>
+        <span className={`text-[10px] ${path.startsWith('/consultations') ? 'font-bold' : 'font-medium'}`}>Tư vấn</span>
+      </Link>
       
       <Link to="/medicine" className={`flex flex-col items-center gap-1 ${path === '/medicine' ? 'text-blue-700 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
         <span className="material-symbols-outlined" style={path === '/medicine' ? { fontVariationSettings: "'FILL' 1" } : {}}>local_pharmacy</span>

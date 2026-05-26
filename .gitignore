@@ -12,3 +12,7 @@ Thumbs.db
 
 *.bak
 web-build.log
+
+# Agent & Claude IDE directories
+.agents/
+

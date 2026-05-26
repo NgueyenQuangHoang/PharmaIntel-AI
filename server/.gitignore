@@ -52,7 +52,7 @@ secrets.json
 
 ## Tooling local state (Claude Code, Cursor, ...)
 .claude/
-
+.agents/
 ## Internal docs (khong commit)
 agent.md
 AI_ENGINE.md

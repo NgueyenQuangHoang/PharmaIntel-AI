@@ -1860,6 +1860,68 @@ Tra ve `PharmacistDto`. 404 neu khong ton tai, 409 neu trung license.
 
 ---
 
+## 10.Y Consultations (Dat lich tu van duoc si)
+
+Cho phep nguoi dung dat lich tu van voi duoc si trong trang `/consultations` va duoc si xu ly o `/pharmacist`.
+
+Schema bang `consultations`:
+- `id` BIGINT PK
+- `user_id` BIGINT FK -> `users`
+- `pharmacist_id` BIGINT FK -> `pharmacists`
+- `scheduled_at` DATETIME2(0) NOT NULL (UTC)
+- `note` NVARCHAR(1000) NULL (van de can tu van)
+- `status` NVARCHAR(20) - CHECK IN (`pending`,`accepted`,`rejected`,`completed`,`cancelled`)
+- `response_note` NVARCHAR(1000) NULL (ghi chu cua duoc si)
+- `created_at`, `updated_at`
+
+Index: `(pharmacist_id, scheduled_at)`, `(user_id, scheduled_at)`.
+
+**Conflict rule:** khong cho 2 consultation cung `pharmacist_id` co `scheduled_at` cach nhau < 30 phut o status `pending` hoac `accepted`.
+
+### 10.Y.1 `POST /api/consultations` (auth)
+
+Body `CreateConsultationRequest`:
+```json
+{
+  "pharmacistId": 3,
+  "scheduledAt": "2026-06-01T09:30:00Z",
+  "note": "Hoi ve thuoc dau dau"
+}
+```
+
+Validation:
+- `scheduledAt` phai o tuong lai -> 400 neu khong.
+- Duoc si phai ton tai va `isActive=true` -> 404 neu khong.
+- Trung lich (slot 30 phut cung pharmacist, status pending/accepted) -> **409 Conflict** voi `detail = "Khung gio nay da co lich tu van khac, vui long chon thoi gian khac."`
+
+201 Created + `ConsultationDto`.
+
+### 10.Y.2 `GET /api/consultations/my` (auth)
+
+Query: `page`, `pageSize`, `status?`.
+Tra ve `PagedResult<ConsultationDto>` cua user dang dang nhap, sap xep `scheduledAt` desc.
+
+### 10.Y.3 `GET /api/pharmacist/consultations` (role=pharmacist)
+
+Query: `page`, `pageSize`, `status?`.
+Tra ve danh sach yeu cau cho duoc si (`pharmacists.user_id = currentUserId`). 404 neu tai khoan khong gan voi ho so duoc si.
+
+### 10.Y.4 `PUT /api/pharmacist/consultations/{id}/status` (role=pharmacist)
+
+Body `UpdateConsultationStatusRequest`:
+```json
+{ "status": "accepted", "responseNote": "Toi se goi vao gio nay" }
+```
+
+Transition hop le:
+- `pending` -> `accepted` | `rejected` | `cancelled`
+- `accepted` -> `completed` | `cancelled`
+- Khac -> 409 Conflict.
+
+403 neu consultation khong thuoc duoc si dang dang nhap. Tra ve `ConsultationDto`.
+
+---
+
 ## 10.X Pharmacist Workflow (Duoc si xac minh + nhap items)
 
 > **Tat ca endpoint trong muc nay yeu cau JWT + role=`pharmacist`.**

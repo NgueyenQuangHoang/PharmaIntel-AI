@@ -31,10 +31,11 @@ pipeline {
     }
 
     environment {
+        PROJECT_NAME = 'pharmaintel'
+        PROJECT_DIR  = '/opt/pharmaintel'
         ENV_FILE     = '/opt/pharmaintel/.env'
-        COMPOSE_BASE = 'docker-compose.yml'
-        COMPOSE_PROD = 'docker-compose.prod.yml'
-        // API port mac dinh khop voi .env (API_PORT=5292)
+        COMPOSE_BASE = '/opt/pharmaintel/docker-compose.yml'
+        COMPOSE_PROD = '/opt/pharmaintel/docker-compose.prod.yml'
         HEALTH_URL   = 'http://localhost:5292/health/ready'
     }
 
@@ -42,6 +43,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+                sh 'git log -1 --pretty=format:"%h - %an: %s"'
             }
         }
 
@@ -51,6 +53,11 @@ pipeline {
                     set -e
                     echo "==> Kiem tra .env file"
                     test -f "$ENV_FILE" || { echo "Khong tim thay $ENV_FILE"; exit 1; }
+
+                    echo "==> Kiem tra compose files"
+                    test -f "$COMPOSE_BASE" || { echo "Khong tim thay $COMPOSE_BASE"; exit 1; }
+                    test -f "$COMPOSE_PROD" || { echo "Khong tim thay $COMPOSE_PROD"; exit 1; }
+
                     echo "==> Kiem tra Docker"
                     docker version >/dev/null
                     docker compose version >/dev/null
@@ -63,6 +70,7 @@ pipeline {
                 sh '''
                     set -e
                     docker compose \
+                        -p "$PROJECT_NAME" \
                         -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" \
                         --env-file "$ENV_FILE" \
                         pull api web
@@ -75,6 +83,7 @@ pipeline {
                 sh '''
                     set -e
                     docker compose \
+                        -p "$PROJECT_NAME" \
                         -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" \
                         --env-file "$ENV_FILE" \
                         up -d --no-build --remove-orphans
@@ -96,8 +105,8 @@ pipeline {
                         sleep 5
                     done
                     echo "==> API KHONG ready sau 90s"
-                    docker compose -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" ps
-                    docker compose -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" logs --tail=80 api
+                    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" ps
+                    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" logs --tail=80 api
                     exit 1
                 '''
             }
@@ -113,9 +122,12 @@ pipeline {
     post {
         success {
             echo "Deploy thanh cong - build #${env.BUILD_NUMBER}"
+            sh '''
+                docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" ps
+            '''
         }
         failure {
-            echo "Deploy that bai - kiem tra log o tren. Container hien tai van giu nguyen state truoc khi pull."
+            echo "Deploy that bai - kiem tra log o tren. Container hien tai van giu nguyen state."
         }
     }
 }

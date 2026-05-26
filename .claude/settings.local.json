@@ -16,7 +16,17 @@
       "Bash(echo \"exit=$?\")",
       "Bash(grep -nA 2 \"Property<bool>\\(\\\\\"IsOnline\" PharmaIntel.Infrastructure/Migrations/PharmaIntelDbContextModelSnapshot.cs)",
       "Bash(npm install *)",
-      "Bash(npx skills *)"
+      "Bash(npx skills *)",
+      "Bash(gh run *)",
+      "PowerShell(gh run list --limit 10)",
+      "Bash(mkdir -p server/docs)",
+      "Bash(git mv *)",
+      "Bash(git reset *)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)"
     ]
   }
 }

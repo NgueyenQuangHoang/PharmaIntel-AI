@@ -64,6 +64,9 @@ public class PharmaIntelDbContext : DbContext
     public DbSet<PharmacistChatSession> PharmacistChatSessions => Set<PharmacistChatSession>();
     public DbSet<PharmacistChatMessage> PharmacistChatMessages => Set<PharmacistChatMessage>();
 
+    // === Tu van (dat lich) ===
+    public DbSet<Consultation> Consultations => Set<Consultation>();
+
     // === AI ===
     public DbSet<AiInsight> AiInsights => Set<AiInsight>();
 

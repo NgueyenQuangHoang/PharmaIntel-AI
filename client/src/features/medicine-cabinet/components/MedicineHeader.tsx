@@ -31,7 +31,7 @@ export function MedicineHeader({
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <select
-            className="appearance-none bg-surface-container-low border-none rounded-xl py-4 pl-6 pr-12 font-medium focus:ring-2 focus:ring-primary outline-none"
+            className="w-full md:w-auto appearance-none bg-surface-container-low border-none rounded-xl py-4 pl-6 pr-12 font-medium focus:ring-2 focus:ring-primary outline-none"
             value={sortOption}
             onChange={(e) => onSortChange(e.target.value)}
           >

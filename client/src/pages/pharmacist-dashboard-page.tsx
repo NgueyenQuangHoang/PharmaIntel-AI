@@ -4,6 +4,7 @@ import axios from 'axios'
 import { pharmacistApi } from '@/features/pharmacist/pharmacist-api'
 import type { PrescriptionDocumentVerification } from '@/features/pharmacist/types'
 import { resolveFileUrl } from '@/utils/file-url'
+import { PharmacistConsultationsPanel } from '@/features/consultations/PharmacistConsultationsPanel'
 
 function extractApiError(err: unknown, fallback: string) {
   if (axios.isAxiosError(err)) {
@@ -18,6 +19,7 @@ function extractApiError(err: unknown, fallback: string) {
 }
 
 type Tab = 'pending' | 'verified' | 'rejected'
+type Section = 'prescriptions' | 'consultations'
 
 const TAB_LABELS: Record<Tab, string> = {
   pending: 'Hàng chờ',
@@ -25,8 +27,14 @@ const TAB_LABELS: Record<Tab, string> = {
   rejected: 'Đã từ chối',
 }
 
+const SECTION_LABELS: Record<Section, string> = {
+  prescriptions: 'Đơn thuốc',
+  consultations: 'Yêu cầu tư vấn',
+}
+
 export function PharmacistDashboardPage() {
   const navigate = useNavigate()
+  const [section, setSection] = useState<Section>('prescriptions')
   const [tab, setTab] = useState<Tab>('pending')
   const [items, setItems] = useState<PrescriptionDocumentVerification[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,8 +57,8 @@ export function PharmacistDashboardPage() {
   }
 
   useEffect(() => {
-    load(tab)
-  }, [tab])
+    if (section === 'prescriptions') load(tab)
+  }, [tab, section])
 
   const emptyMessage =
     tab === 'pending'
@@ -70,6 +78,27 @@ export function PharmacistDashboardPage() {
         </p>
       </header>
 
+      <div className="mb-6 inline-flex p-1 bg-surface-container rounded-2xl border border-outline-variant/30">
+        {(Object.keys(SECTION_LABELS) as Section[]).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setSection(s)}
+            className={`px-5 py-2 font-semibold text-sm rounded-xl transition-colors ${
+              section === s
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            {SECTION_LABELS[s]}
+          </button>
+        ))}
+      </div>
+
+      {section === 'consultations' && <PharmacistConsultationsPanel />}
+
+      {section === 'prescriptions' && (
+      <>
       <div className="mb-6 flex gap-2 border-b border-outline-variant/30">
         {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
           <button
@@ -171,6 +200,8 @@ export function PharmacistDashboardPage() {
           )
         })}
       </div>
+      </>
+      )}
     </div>
   )
 }
