@@ -36,7 +36,7 @@ pipeline {
         ENV_FILE     = '/opt/pharmaintel/.env'
         COMPOSE_BASE = '/opt/pharmaintel/docker-compose.yml'
         COMPOSE_PROD = '/opt/pharmaintel/docker-compose.prod.yml'
-        HEALTH_URL   = 'http://api:5292/health/ready'
+        HEALTH_URL   = 'http://api:8080/health/ready'
     }
 
     stages {
