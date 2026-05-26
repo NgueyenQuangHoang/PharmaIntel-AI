@@ -1,0 +1,20 @@
+# =============================================================================
+# docker-compose.prod.yml - Override cho production deploy
+# Dung cung voi docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --env-file /opt/pharmaintel/.env up -d --no-build --remove-orphans
+#
+# Khac biet so voi compose goc:
+#   - api/web KHONG build tu Dockerfile local, ma PULL image tu GHCR
+#   - pull_policy: always -> luc `up` se kiem tra version moi
+#   - Khong rebuild nhanh hon, va dam bao image dung version da pass CI
+# =============================================================================
+
+services:
+  api:
+    image: ghcr.io/ngueyenquanghoang/pharmaintel-api:latest
+    pull_policy: always
+
+  web:
+    image: ghcr.io/ngueyenquanghoang/pharmaintel-web:latest
+    pull_policy: always

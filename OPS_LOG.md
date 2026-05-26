@@ -3,8 +3,8 @@
 Ghi lai cac viec da lam o phan ops (DevOps / cau hinh / trien khai).
 File nay duoc CAP NHAT MOI khi co thay doi ops moi.
 
-> Cap nhat lan cuoi: 2026-05-19
-> Trang thai: Phase 1-8 hoan tat.
+> Cap nhat lan cuoi: 2026-05-26
+> Trang thai: Phase 1-9 hoan tat.
 
 ---
 
@@ -20,6 +20,43 @@ File nay duoc CAP NHAT MOI khi co thay doi ops moi.
 | 6 | Health check API (/health, /live, /ready) | Done |
 | 7 | GitHub Actions CI (backend + frontend) | Done |
 | 8 | Docker build & push len GHCR | Done |
+| 9 | Jenkins pipeline auto-deploy (pull GHCR -> compose up) | Done |
+
+---
+
+## Phase 9 - Jenkins auto-deploy
+
+**Muc tieu:** Push master -> Jenkins tu pull image moi tu GHCR va deploy.
+
+### Files them moi
+
+| File | Vai tro |
+|---|---|
+| `Jenkinsfile` | Pipeline declarative: checkout -> pull -> deploy -> healthcheck |
+| `docker-compose.prod.yml` | Override compose: dung image GHCR thay vi build local |
+
+### Tien de tren server
+
+1. Jenkins cai dat tren chinh server deploy (Ubuntu)
+2. User `jenkins` da `usermod -aG docker jenkins` (chay `docker` khong can sudo)
+3. File `.env` prod san o `/opt/pharmaintel/.env`
+4. Image GHCR `pharmaintel-api` + `pharmaintel-web` set **Public** (GitHub Packages settings)
+   - Hoac giu Private va `docker login ghcr.io` 1 lan duoi user `jenkins`
+
+### Setup Jenkins job
+
+1. New Item -> **Pipeline**
+2. Build Triggers -> tick **GitHub hook trigger for GITScm polling**
+3. Pipeline -> Definition: **Pipeline script from SCM**
+   - SCM: Git, URL: `https://github.com/NgueyenQuangHoang/PharmaIntel-AI.git`
+   - Branch: `master`, Script Path: `Jenkinsfile`
+4. Tren GitHub repo -> Settings -> Webhooks -> them `http://<jenkins-url>/github-webhook/`
+
+### Workflow
+
+`git push master` -> webhook -> Jenkins build -> docker compose pull + up -d -> curl /health/ready -> done.
+
+Khong rollback tu dong - container cu giu nguyen neu pull/up fail. Khi healthcheck fail, log API duoc in ra trong console Jenkins.
 
 ---
 
