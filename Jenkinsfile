@@ -37,6 +37,8 @@ pipeline {
         COMPOSE_BASE = '/opt/pharmaintel/docker-compose.yml'
         COMPOSE_PROD = '/opt/pharmaintel/docker-compose.prod.yml'
         HEALTH_URL   = 'http://api:8080/health/ready'
+        IMAGE_API    = 'ghcr.io/ngueyenquanghoang/pharmaintel-api'
+        IMAGE_WEB    = 'ghcr.io/ngueyenquanghoang/pharmaintel-web'
     }
 
     stages {
@@ -51,26 +53,41 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    echo "==> Kiem tra .env file"
                     test -f "$ENV_FILE" || { echo "Khong tim thay $ENV_FILE"; exit 1; }
-
-                    echo "==> Kiem tra compose files"
                     test -f "$COMPOSE_BASE" || { echo "Khong tim thay $COMPOSE_BASE"; exit 1; }
                     test -f "$COMPOSE_PROD" || { echo "Khong tim thay $COMPOSE_PROD"; exit 1; }
-
-                    echo "==> Kiem tra Docker"
                     docker version >/dev/null
                     docker compose version >/dev/null
                 '''
             }
         }
 
-        stage('Pull images') {
+        stage('Backup current images (for rollback)') {
             steps {
                 sh '''
                     set -e
-                    docker compose \
-                        -p "$PROJECT_NAME" \
+                    echo "==> Tag image hien tai thanh :previous de phong rollback"
+
+                    # Tag api hien tai thanh :previous (neu co)
+                    if docker image inspect "$IMAGE_API:latest" >/dev/null 2>&1; then
+                        docker tag "$IMAGE_API:latest" "$IMAGE_API:previous"
+                        echo "Da tag $IMAGE_API:latest -> :previous"
+                    fi
+
+                    # Tag web hien tai thanh :previous (neu co)
+                    if docker image inspect "$IMAGE_WEB:latest" >/dev/null 2>&1; then
+                        docker tag "$IMAGE_WEB:latest" "$IMAGE_WEB:previous"
+                        echo "Da tag $IMAGE_WEB:latest -> :previous"
+                    fi
+                '''
+            }
+        }
+
+        stage('Pull new images') {
+            steps {
+                sh '''
+                    set -e
+                    docker compose -p "$PROJECT_NAME" \
                         -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" \
                         --env-file "$ENV_FILE" \
                         pull api web
@@ -82,8 +99,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    docker compose \
-                        -p "$PROJECT_NAME" \
+                    docker compose -p "$PROJECT_NAME" \
                         -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" \
                         --env-file "$ENV_FILE" \
                         up -d --no-build --remove-orphans
@@ -93,28 +109,37 @@ pipeline {
 
         stage('Health check') {
             steps {
-                sh '''
-                    set -e
-                    echo "==> Doi API ready (timeout 90s)"
-                    for i in $(seq 1 18); do
-                        if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
-                            echo "==> API ready sau ${i} lan check (${i}x5s)"
-                            exit 0
-                        fi
-                        echo "  [${i}/18] chua ready, doi 5s..."
-                        sleep 5
-                    done
-                    echo "==> API KHONG ready sau 90s"
-                    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" ps
-                    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" logs --tail=80 api
-                    exit 1
-                '''
+                script {
+                    try {
+                        sh '''
+                            set -e
+                            echo "==> Doi API ready (timeout 90s)"
+                            for i in $(seq 1 18); do
+                                if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+                                    echo "==> API ready sau ${i} lan check"
+                                    exit 0
+                                fi
+                                echo "  [${i}/18] chua ready, doi 5s..."
+                                sleep 5
+                            done
+                            echo "==> API KHONG ready sau 90s - se rollback"
+                            exit 1
+                        '''
+                    } catch (Exception e) {
+                        // Set flag de stage rollback xu ly
+                        env.NEED_ROLLBACK = 'true'
+                        error("Health check FAILED - se tu rollback ve phien ban truoc")
+                    }
+                }
             }
         }
 
         stage('Cleanup') {
             steps {
-                sh 'docker image prune -f'
+                sh '''
+                    docker image prune -f
+                    echo "==> Deploy thanh cong, giu image :previous de phong khi can rollback tay"
+                '''
             }
         }
     }
@@ -127,7 +152,48 @@ pipeline {
             '''
         }
         failure {
-            echo "Deploy that bai - kiem tra log o tren. Container hien tai van giu nguyen state."
+            script {
+                if (env.NEED_ROLLBACK == 'true') {
+                    echo "==> BAT DAU AUTO ROLLBACK ve phien ban :previous"
+                    sh '''
+                        set -e
+
+                        # Kiem tra co image :previous khong
+                        if ! docker image inspect "$IMAGE_API:previous" >/dev/null 2>&1; then
+                            echo "Khong co image :previous de rollback (lan deploy dau tien?)"
+                            exit 1
+                        fi
+
+                        # Tag :previous thanh :latest de docker compose dung
+                        docker tag "$IMAGE_API:previous" "$IMAGE_API:latest"
+                        docker tag "$IMAGE_WEB:previous" "$IMAGE_WEB:latest"
+                        echo "Da revert :previous -> :latest"
+
+                        # Deploy lai voi image cu
+                        docker compose -p "$PROJECT_NAME" \
+                            -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" \
+                            --env-file "$ENV_FILE" \
+                            up -d --no-build --remove-orphans
+
+                        # Cho health check lai (60s)
+                        echo "==> Cho rollback ready (60s)"
+                        for i in $(seq 1 12); do
+                            if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+                                echo "==> ROLLBACK THANH CONG - he thong da ve phien ban truoc"
+                                exit 0
+                            fi
+                            sleep 5
+                        done
+
+                        echo "==> ROLLBACK CUNG FAIL - can can thiep tay gap"
+                        docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" ps
+                        docker compose -p "$PROJECT_NAME" -f "$COMPOSE_BASE" -f "$COMPOSE_PROD" --env-file "$ENV_FILE" logs --tail=80 api
+                        exit 1
+                    '''
+                } else {
+                    echo "Deploy fail truoc khi den Health check - khong can rollback"
+                }
+            }
         }
     }
-}
+
