@@ -15,8 +15,11 @@
 name: Docker build & push
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Backend CI", "Frontend CI"]
+    types: [completed]
     branches: [master]
+  push:
     tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
@@ -31,8 +34,19 @@ env:
   IMAGE_WEB: ${{ github.repository_owner }}/pharmaintel-web
 
 jobs:
+  # Guard: chi build khi CI da pass
+  check:
+    name: Check CI passed
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - run: echo "CI da pass, tien hanh build & push image"
   api:
     name: Build & push API image
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -80,6 +94,7 @@ jobs:
 
   web:
     name: Build & push web image
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: read
