@@ -16,3 +16,4 @@ web-build.log
 # Agent & Claude IDE directories
 .agents/
 
+client/.env
