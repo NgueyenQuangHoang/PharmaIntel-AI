@@ -2891,6 +2891,79 @@ curl http://localhost:5292/api/diagnostics/results/1 -H "Authorization: Bearer $
 
 ---
 
+## 14.C Chat real-time (Benh nhan <-> Duoc si, SignalR)
+
+Chat real-time chay qua **SignalR hub** `/hubs/chat` (KHONG phai REST). Hai endpoint
+REST duoi day chi phu tro: tao/lay phien va tai lich su tin nhan. Phan gui/nhan tuc
+thoi di qua hub.
+
+**Phan quyen phien (`IChatService.CanAccessSessionAsync`):** benh nhan chi vao phien
+cua minh; duoc si (`Pharmacist.IsActive`) vao phien duoc gan cho minh, hoac phien dang
+`waiting` chua ai nhan. Khong tin `sessionId` tu client.
+
+**Vong doi phien:** `waiting` (benh nhan tao) -> `open` (duoc si gui tin dau tien,
+phien duoc gan duoc si do) -> `closed` / `cancelled`.
+
+### 14.C.1 `POST /api/chat/session`
+
+Benh nhan mo man chat: lay phien dang mo (`open`/`waiting`) cua minh, hoac tao moi
+(`waiting`). Rate limit policy `ai-chat` (20 req/phut/user).
+
+```bash
+curl -s -X POST $BASE/api/chat/session -H "Authorization: Bearer $TOKEN"
+```
+
+Response 200:
+```json
+{
+  "id": 12,
+  "userId": 5,
+  "pharmacistId": null,
+  "status": "waiting",
+  "startedAt": "2026-06-04T08:00:00",
+  "closedAt": null
+}
+```
+
+### 14.C.2 `GET /api/chat/{sessionId}/messages`
+
+Lay lich su tin nhan cua phien (cuon len xem lai). Tra `403` neu khong co quyen.
+
+```bash
+curl -s $BASE/api/chat/12/messages -H "Authorization: Bearer $TOKEN"
+```
+
+Response 200:
+```json
+[
+  {
+    "id": 1,
+    "sessionId": 12,
+    "senderType": "user",
+    "senderUserId": 5,
+    "senderPharmacistId": null,
+    "content": "Chao duoc si, cho em hoi...",
+    "sentAt": "2026-06-04T08:00:05"
+  }
+]
+```
+
+### 14.C.3 SignalR Hub `/hubs/chat`
+
+- **Ket noi:** JWT truyen qua query `?access_token=...` (WebSocket khong gui header
+  `Authorization`). Server chi doc token tu query cho duong dan `/hubs/chat`.
+- **Method client -> server:**
+  - `JoinSession(long sessionId)` — tham gia group `session-{id}` sau khi check quyen.
+  - `LeaveSession(long sessionId)` — roi group.
+  - `SendMessage(long sessionId, string content)` — luu DB roi broadcast cho group.
+- **Event server -> client:** `ReceiveMessage(ChatMessageDto)` — moi tin nhan moi
+  (gom ca tin cua chinh nguoi gui, nen UI dong bo voi DB, khong can optimistic update).
+
+Client React: `client/src/features/chat/` (hook `useChat`, component `ChatBox`).
+Can cai `npm i @microsoft/signalr`.
+
+---
+
 ## 15. Test Script Tong Hop
 
 ```bash

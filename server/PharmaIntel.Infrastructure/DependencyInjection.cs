@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<IPrescriptionService, PrescriptionService>();
         services.AddScoped<IPharmacistService, PharmacistService>();
         services.AddScoped<IConsultationService, ConsultationService>();
+        services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IPharmacistPrescriptionVerificationService, PharmacistPrescriptionVerificationService>();
         services.AddScoped<IPharmacistPrescriptionItemService, PharmacistPrescriptionItemService>();
         services.AddScoped<IMedicationReminderService, MedicationReminderService>();
