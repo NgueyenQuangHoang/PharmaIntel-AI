@@ -33,3 +33,21 @@ public class SendMessageRequest
     public long SessionId { get; set; }
     public string Content { get; set; } = string.Empty;
 }
+
+// --- Body khi benh nhan mo/tao phien chat voi mot duoc si cu the ---
+public class StartChatSessionRequest
+{
+    public long PharmacistId { get; set; }
+}
+
+// --- Item danh sach phien cho duoc si (kem thong tin hien thi) ---
+public class ChatSessionListItemDto
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public string UserFullName { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty; // waiting | open
+    public DateTime StartedAt { get; set; }
+    public string? LastMessage { get; set; }
+    public DateTime? LastMessageAt { get; set; }
+}

@@ -11,8 +11,9 @@ namespace PharmaIntel.Core.Interfaces.Services;
 
 public interface IChatService
 {
-    // Benh nhan tao (hoac lay lai) phien dang mo cua minh.
-    Task<ChatSessionDto> GetOrCreateSessionForUserAsync(long userId, CancellationToken ct = default);
+    // Benh nhan tao (hoac lay lai) phien chat voi mot duoc si cu the.
+    // Moi cap (benh nhan, duoc si) la mot cuoc tro chuyen rieng.
+    Task<ChatSessionDto> GetOrCreateSessionForUserAsync(long userId, long pharmacistId, CancellationToken ct = default);
 
     // Lay lich su tin nhan cua mot phien (sau khi da check quyen truy cap).
     Task<IReadOnlyList<ChatMessageDto>> GetMessagesAsync(long requesterUserId, long sessionId, CancellationToken ct = default);
@@ -24,4 +25,13 @@ public interface IChatService
     // Kiem tra mot user co quyen tham gia phien khong (benh nhan so huu phien,
     // duoc si duoc gan, hoac duoc si chua gan nhung phien dang cho).
     Task<bool> CanAccessSessionAsync(long userId, long sessionId, CancellationToken ct = default);
+
+    // Sinh tin tra loi cua AI cho phien (senderType "system"). Tra null neu phien
+    // da co duoc si tiep quan (PharmacistId != null) hoac da dong -> luc do AI ngung.
+    Task<ChatMessageDto?> GenerateAiReplyAsync(long sessionId, CancellationToken ct = default);
+
+    // Danh sach phien cho duoc si: "waiting" = hang cho (AI dang xu ly, co the tiep quan),
+    // "open" = cac phien duoc si nay da nhan. status null = ca hai.
+    Task<IReadOnlyList<ChatSessionListItemDto>> GetSessionsForPharmacistAsync(
+        long pharmacistUserId, string? status, CancellationToken ct = default);
 }

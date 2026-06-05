@@ -2897,20 +2897,33 @@ Chat real-time chay qua **SignalR hub** `/hubs/chat` (KHONG phai REST). Hai endp
 REST duoi day chi phu tro: tao/lay phien va tai lich su tin nhan. Phan gui/nhan tuc
 thoi di qua hub.
 
-**Phan quyen phien (`IChatService.CanAccessSessionAsync`):** benh nhan chi vao phien
-cua minh; duoc si (`Pharmacist.IsActive`) vao phien duoc gan cho minh, hoac phien dang
-`waiting` chua ai nhan. Khong tin `sessionId` tu client.
+**Moi cap (benh nhan, duoc si) = mot cuoc tro chuyen rieng.** Phien luon gan dich danh
+mot duoc si tu luc tao (`pharmacistId` khac null). Chat voi duoc si A va B la hai phien
+khac nhau, lich su tach biet.
 
-**Vong doi phien:** `waiting` (benh nhan tao) -> `open` (duoc si gui tin dau tien,
-phien duoc gan duoc si do) -> `closed` / `cancelled`.
+**Phan quyen phien (`IChatService.CanAccessSessionAsync`):** benh nhan chi vao phien
+cua minh; duoc si (`Pharmacist.IsActive`) chi vao phien duoc gan dung cho minh
+(`session.PharmacistId == pharmacist.Id`). Khong tin `sessionId` tu client.
+
+**Vong doi phien:** `waiting` (benh nhan tao, gan dich danh duoc si) -> `open` (dung
+duoc si do gui tin dau tien = tiep quan) -> `closed` / `cancelled`.
+
+**Hybrid AI + duoc si:** khi benh nhan gui tin va phien con `waiting`, server tu sinh
+tin tra loi cua **AI** (Gemini, qua `IDiagnosticEngine.GenerateChatReplyAsync`) voi
+`senderType = "system"`. **AI chi tra loi DUNG MOT LAN** dau tien moi phien (neu da co
+tin `system` thi thoi). Khi duoc si dich danh gui tin -> phien thanh `open` va AI khong
+con tham gia. Khong can flag rieng: gate bang `status == "waiting"` + chua co tin AI nao.
 
 ### 14.C.1 `POST /api/chat/session`
 
-Benh nhan mo man chat: lay phien dang mo (`open`/`waiting`) cua minh, hoac tao moi
-(`waiting`). Rate limit policy `ai-chat` (20 req/phut/user).
+Benh nhan mo man chat voi mot duoc si cu the: lay phien dang mo (`open`/`waiting`) voi
+duoc si do, hoac tao moi (`waiting`). Body bat buoc `pharmacistId`. Rate limit policy
+`ai-chat` (20 req/phut/user). Tra `404` neu duoc si khong ton tai / khong active.
 
 ```bash
-curl -s -X POST $BASE/api/chat/session -H "Authorization: Bearer $TOKEN"
+curl -s -X POST $BASE/api/chat/session \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"pharmacistId": 3}'
 ```
 
 Response 200:
@@ -2918,7 +2931,7 @@ Response 200:
 {
   "id": 12,
   "userId": 5,
-  "pharmacistId": null,
+  "pharmacistId": 3,
   "status": "waiting",
   "startedAt": "2026-06-04T08:00:00",
   "closedAt": null
@@ -2959,8 +2972,40 @@ Response 200:
 - **Event server -> client:** `ReceiveMessage(ChatMessageDto)` — moi tin nhan moi
   (gom ca tin cua chinh nguoi gui, nen UI dong bo voi DB, khong can optimistic update).
 
-Client React: `client/src/features/chat/` (hook `useChat`, component `ChatBox`).
+Client React: `client/src/features/chat/` (hook `useChat(pharmacistId)`, dock noi
+`ChatDock` mo tu nut Chat tren card duoc si - khong co FAB toan cuc).
 Can cai `npm i @microsoft/signalr`.
+
+### 14.C.4 `GET /api/pharmacist/chat/sessions` (role pharmacist)
+
+Danh sach phien gan dich danh cho duoc si nay. `status=waiting` = hang cho (AI da rep
+1 lan, cho minh tiep quan); `status=open` = cac phien minh da nhan. Bo `status` = ca hai.
+
+```bash
+curl -s "$BASE/api/pharmacist/chat/sessions?status=waiting" -H "Authorization: Bearer $PHARMACIST_TOKEN"
+```
+
+Response 200:
+```json
+[
+  {
+    "id": 12,
+    "userId": 5,
+    "userFullName": "Nguyen Van A",
+    "status": "waiting",
+    "startedAt": "2026-06-04T08:00:00",
+    "lastMessage": "Em bi ho keo dai 3 ngay...",
+    "lastMessageAt": "2026-06-04T08:05:00"
+  }
+]
+```
+
+Duoc si xem tin va gui tin dung lai `GET /api/chat/{id}/messages` + SignalR hub
+`SendMessage` (quyen truy cap da xu ly o `IChatService.CanAccessSessionAsync`). Gui tin
+vao phien `waiting` se tu dong tiep quan phien (xem ghi chu Hybrid o tren).
+
+Client React: `client/src/features/chat/PharmacistChatPanel.tsx` (section "Tin nhan"
+trong trang `/pharmacist`).
 
 ---
 

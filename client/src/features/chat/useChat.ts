@@ -25,7 +25,7 @@ import type { ChatMessage, ChatSession } from '@/features/chat/chat-types'
 
 type ConnState = 'idle' | 'connecting' | 'connected' | 'error'
 
-export function useChat() {
+export function useChat(pharmacistId: number) {
   const [session, setSession] = useState<ChatSession | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [connState, setConnState] = useState<ConnState>('idle')
@@ -38,8 +38,8 @@ export function useChat() {
     async function start() {
       setConnState('connecting')
       try {
-        // 1. Lay/tao phien
-        const { data: sess } = await httpClient.post<ChatSession>('/chat/session')
+        // 1. Lay/tao phien chat voi dung duoc si nay
+        const { data: sess } = await httpClient.post<ChatSession>('/chat/session', { pharmacistId })
         if (cancelled) return
         setSession(sess)
 
@@ -81,7 +81,7 @@ export function useChat() {
       connRef.current?.stop()
       connRef.current = null
     }
-  }, [])
+  }, [pharmacistId])
 
   const send = useCallback(
     async (content: string) => {

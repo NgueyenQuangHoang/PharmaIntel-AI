@@ -24,3 +24,14 @@ export interface ChatSession {
   startedAt: string
   closedAt: string | null
 }
+
+// Item danh sach phien cho duoc si (khop ChatSessionListItemDto ben server).
+export interface ChatSessionListItem {
+  id: number
+  userId: number
+  userFullName: string
+  status: ChatSessionStatus
+  startedAt: string
+  lastMessage: string | null
+  lastMessageAt: string | null
+}

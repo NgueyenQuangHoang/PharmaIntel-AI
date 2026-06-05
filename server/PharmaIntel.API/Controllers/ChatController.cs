@@ -27,12 +27,13 @@ public class ChatController : ControllerBase
         _service = service;
     }
 
-    // Benh nhan mo man chat -> lay phien dang mo cua minh hoac tao moi (waiting).
+    // Benh nhan mo man chat voi mot duoc si cu the -> lay phien dang mo hoac tao moi (waiting).
     [HttpPost("session")]
     [EnableRateLimiting("ai-chat")]
-    public async Task<ActionResult<ChatSessionDto>> GetOrCreateSession(CancellationToken ct)
+    public async Task<ActionResult<ChatSessionDto>> GetOrCreateSession(
+        [FromBody] StartChatSessionRequest request, CancellationToken ct)
     {
-        var dto = await _service.GetOrCreateSessionForUserAsync(User.GetUserId(), ct);
+        var dto = await _service.GetOrCreateSessionForUserAsync(User.GetUserId(), request.PharmacistId, ct);
         return Ok(dto);
     }
 

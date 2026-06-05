@@ -6,6 +6,7 @@ import axios from 'axios';
 import { pharmacistsApi } from '@/features/pharmacists/pharmacists-api';
 import type { Pharmacist } from '@/features/pharmacists/types';
 import { consultationsApi } from '@/features/consultations/consultations-api';
+import { ChatDock } from '@/features/chat/ChatDock';
 
 const SPECIALTIES = ['Tất cả', 'Dược lâm sàng', 'Dược liệu & Cổ truyền', 'Dinh dưỡng', 'Dược lý'];
 
@@ -22,6 +23,7 @@ export function ConsultationsPage() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingToast, setBookingToast] = useState<string | null>(null);
+  const [chatPharmacist, setChatPharmacist] = useState<Pharmacist | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,7 +216,7 @@ export function ConsultationsPage() {
                   </div>
                   <div className="flex-[2] flex justify-end gap-2">
                     <button
-                      onClick={() => alert('Tính năng chat trực tiếp đang được phát triển.')}
+                      onClick={() => setChatPharmacist(pharmacist)}
                       className="p-2.5 rounded-xl bg-secondary-container text-secondary hover:bg-secondary/20 transition-colors"
                       title="Chat nhanh"
                     >
@@ -233,6 +235,15 @@ export function ConsultationsPage() {
           </div>
         )}
       </section>
+
+      {chatPharmacist && (
+        <ChatDock
+          key={chatPharmacist.id}
+          pharmacistId={chatPharmacist.id}
+          pharmacistName={chatPharmacist.fullName}
+          onClose={() => setChatPharmacist(null)}
+        />
+      )}
 
       {bookingToast && (
         <div className="fixed top-6 right-6 z-50 max-w-sm p-4 rounded-2xl bg-primary text-on-primary shadow-lg font-semibold text-sm animate-in fade-in slide-in-from-top-4">

@@ -55,5 +55,14 @@ public class ChatHub : Hub
         var message = await _chatService.SaveMessageAsync(userId, sessionId, content, Context.ConnectionAborted);
 
         await Clients.Group(GroupName(sessionId)).SendAsync("ReceiveMessage", message, Context.ConnectionAborted);
+
+        // Hybrid: neu tin la cua benh nhan va phien chua co duoc si tiep quan -> AI tra loi.
+        // GenerateAiReplyAsync tu tra null khi da co duoc si nhan phien.
+        if (message.SenderType == "user")
+        {
+            var aiReply = await _chatService.GenerateAiReplyAsync(sessionId, Context.ConnectionAborted);
+            if (aiReply is not null)
+                await Clients.Group(GroupName(sessionId)).SendAsync("ReceiveMessage", aiReply, Context.ConnectionAborted);
+        }
     }
 }

@@ -19,16 +19,30 @@ namespace PharmaIntel.Infrastructure.Services;
 public class ChatService : IChatService
 {
     private readonly PharmaIntelDbContext _db;
+    private readonly IDiagnosticEngine _engine;
+    private readonly IAiMedicationRetrievalService _retrieval;
 
-    public ChatService(PharmaIntelDbContext db)
+    public ChatService(
+        PharmaIntelDbContext db,
+        IDiagnosticEngine engine,
+        IAiMedicationRetrievalService retrieval)
     {
         _db = db;
+        _engine = engine;
+        _retrieval = retrieval;
     }
 
-    public async Task<ChatSessionDto> GetOrCreateSessionForUserAsync(long userId, CancellationToken ct = default)
+    public async Task<ChatSessionDto> GetOrCreateSessionForUserAsync(long userId, long pharmacistId, CancellationToken ct = default)
     {
+        // Moi cap (benh nhan, duoc si) la mot cuoc tro chuyen rieng.
+        var pharmacist = await _db.Pharmacists
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == pharmacistId && p.IsActive, ct)
+            ?? throw new NotFoundException("Khong tim thay duoc si");
+
         var session = await _db.PharmacistChatSessions
-            .Where(s => s.UserId == userId && (s.Status == "open" || s.Status == "waiting"))
+            .Where(s => s.UserId == userId && s.PharmacistId == pharmacistId
+                        && (s.Status == "open" || s.Status == "waiting"))
             .OrderByDescending(s => s.StartedAt)
             .FirstOrDefaultAsync(ct);
 
@@ -37,7 +51,8 @@ public class ChatService : IChatService
             session = new PharmacistChatSession
             {
                 UserId = userId,
-                Status = "waiting", // cho duoc si nhan phien
+                PharmacistId = pharmacist.Id, // gan duoc si dich danh ngay tu dau
+                Status = "waiting",           // cho dung duoc si nay tiep quan
                 StartedAt = DateTime.UtcNow
             };
             _db.PharmacistChatSessions.Add(session);
@@ -93,12 +108,10 @@ public class ChatService : IChatService
 
         _db.PharmacistChatMessages.Add(message);
 
-        // Duoc si gui tin dau tien -> phien chuyen sang "open" + gan duoc si.
+        // Duoc si dich danh gui tin dau tien -> tiep quan phien (waiting -> open).
+        // PharmacistId da gan tu luc tao phien nen khong can gan lai.
         if (senderType == "pharmacist" && session.Status == "waiting")
-        {
             session.Status = "open";
-            session.PharmacistId = senderPharmacistId;
-        }
 
         await _db.SaveChangesAsync(ct);
 
@@ -125,16 +138,118 @@ public class ChatService : IChatService
         // Benh nhan so huu phien.
         if (session.UserId == userId) return true;
 
-        // Nguoi gui la duoc si: cho phep neu da duoc gan phien, HOAC phien dang
-        // cho (waiting) va chua co duoc si nao nhan -> duoc si bat ky co the vao nhan.
+        // Phien luon gan dich danh mot duoc si -> chi dung duoc si do duoc truy cap.
         var pharmacist = await _db.Pharmacists
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == userId && p.IsActive, ct);
 
         if (pharmacist is null) return false;
 
-        return session.PharmacistId == pharmacist.Id
-               || (session.PharmacistId is null && session.Status == "waiting");
+        return session.PharmacistId == pharmacist.Id;
+    }
+
+    public async Task<ChatMessageDto?> GenerateAiReplyAsync(long sessionId, CancellationToken ct = default)
+    {
+        var session = await _db.PharmacistChatSessions
+            .FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+
+        // AI chi rep khi phien con "waiting" (duoc si chua tiep quan -> chua "open").
+        if (session is null || session.Status != "waiting")
+            return null;
+
+        // Chi rep DUNG MOT LAN dau tien: neu da co tin AI (system) thi thoi.
+        var aiAlreadyReplied = await _db.PharmacistChatMessages
+            .AnyAsync(m => m.SessionId == sessionId && m.SenderType == "system", ct);
+        if (aiAlreadyReplied) return null;
+
+        // Lay 20 tin gan nhat lam ngu canh; tin user moi nhat la cau hoi can tra loi.
+        var recent = await _db.PharmacistChatMessages
+            .AsNoTracking()
+            .Where(m => m.SessionId == sessionId)
+            .OrderByDescending(m => m.SentAt)
+            .Take(20)
+            .ToListAsync(ct);
+        recent.Reverse();
+
+        var latestUser = recent.LastOrDefault(m => m.SenderType == "user");
+        if (latestUser is null) return null; // khong co cau hoi cua user -> khong rep
+
+        var history = recent
+            .Where(m => m.Id != latestUser.Id)
+            .Select(m => $"{(m.SenderType == "user" ? "Khach" : "AI")}: {m.Content}")
+            .ToList();
+
+        var meds = await _retrieval.SearchRelevantMedicationsAsync(
+            symptomsSummary: string.Empty,
+            conversationMessages: history,
+            ct);
+
+        var reply = await _engine.GenerateChatReplyAsync(
+            symptomsSummary: string.Empty,
+            conversationMessages: history,
+            userMessage: latestUser.Content,
+            medicationContexts: meds,
+            ct);
+
+        if (string.IsNullOrWhiteSpace(reply)) return null;
+
+        var message = new PharmacistChatMessage
+        {
+            SessionId = sessionId,
+            SenderType = "system", // AI = system (sender ids deu null theo CHECK constraint)
+            SenderUserId = null,
+            SenderPharmacistId = null,
+            Content = reply.Trim(),
+            SentAt = DateTime.UtcNow
+        };
+
+        _db.PharmacistChatMessages.Add(message);
+        await _db.SaveChangesAsync(ct);
+
+        return new ChatMessageDto
+        {
+            Id = message.Id,
+            SessionId = message.SessionId,
+            SenderType = message.SenderType,
+            SenderUserId = message.SenderUserId,
+            SenderPharmacistId = message.SenderPharmacistId,
+            Content = message.Content,
+            SentAt = message.SentAt
+        };
+    }
+
+    public async Task<IReadOnlyList<ChatSessionListItemDto>> GetSessionsForPharmacistAsync(
+        long pharmacistUserId, string? status, CancellationToken ct = default)
+    {
+        var pharmacist = await _db.Pharmacists
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == pharmacistUserId && p.IsActive, ct);
+
+        if (pharmacist is null) return [];
+
+        // Phien luon gan dich danh duoc si. waiting = hang cho (AI da rep, cho minh
+        // tiep quan); open = minh da tiep quan.
+        var query = _db.PharmacistChatSessions.AsNoTracking().Where(s =>
+            s.PharmacistId == pharmacist.Id && (s.Status == "waiting" || s.Status == "open"));
+
+        if (status == "waiting")
+            query = query.Where(s => s.Status == "waiting");
+        else if (status == "open")
+            query = query.Where(s => s.Status == "open");
+
+        return await query
+            .OrderByDescending(s => s.StartedAt)
+            .Select(s => new ChatSessionListItemDto
+            {
+                Id = s.Id,
+                UserId = s.UserId,
+                UserFullName = s.User.FullName,
+                Status = s.Status,
+                StartedAt = s.StartedAt,
+                LastMessage = s.Messages.OrderByDescending(m => m.SentAt).Select(m => m.Content).FirstOrDefault(),
+                LastMessageAt = s.Messages.OrderByDescending(m => m.SentAt).Select(m => (DateTime?)m.SentAt).FirstOrDefault()
+            })
+            .ToListAsync(ct);
     }
 
     // Tra ve (sender_type, pharmacistId|null) cho nguoi gui trong boi canh phien.
@@ -148,12 +263,8 @@ public class ChatService : IChatService
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == senderUserId && p.IsActive, ct);
 
-        if (pharmacist is not null &&
-            (session.PharmacistId == pharmacist.Id ||
-             (session.PharmacistId is null && session.Status == "waiting")))
-        {
+        if (pharmacist is not null && session.PharmacistId == pharmacist.Id)
             return ("pharmacist", pharmacist.Id);
-        }
 
         throw new ForbiddenException("Khong co quyen gui tin trong phien nay");
     }
