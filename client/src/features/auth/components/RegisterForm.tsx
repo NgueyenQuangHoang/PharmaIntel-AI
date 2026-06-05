@@ -42,6 +42,10 @@ export function RegisterForm() {
       setLocalError('Mat khau toi thieu 8 ky tu.');
       return;
     }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+      setLocalError('Mat khau phai co it nhat 1 chu HOA, 1 chu thuong va 1 chu so.');
+      return;
+    }
     if (password !== confirmPassword) {
       setLocalError('Xac nhan mat khau khong khop.');
       return;
@@ -158,7 +162,7 @@ export function RegisterForm() {
               </div>
             </div>
           </div>
-          <p className="font-body text-xs text-on-surface-variant ml-1 -mt-2 block">Must be at least 8 chars.</p>
+          <p className="font-body text-xs text-on-surface-variant ml-1 -mt-2 block">At least 8 chars, including 1 uppercase, 1 lowercase &amp; 1 number.</p>
 
           {/* Terms Checkbox */}
           <div className="flex items-start mt-4">

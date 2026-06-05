@@ -32,7 +32,15 @@ const initialState: AuthState = {
 
 function extractError(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { title?: string; detail?: string; message?: string } | undefined
+    const data = err.response?.data as
+      | { title?: string; detail?: string; message?: string; errors?: Record<string, string[]> }
+      | undefined
+    // Loi validation (RFC 7807 ValidationProblemDetails): gop cac thong diep field-level,
+    // vi detail/title chi la "Du lieu khong hop le" chung chung.
+    if (data?.errors) {
+      const messages = Object.values(data.errors).flat().filter(Boolean)
+      if (messages.length > 0) return messages.join(' ')
+    }
     return data?.detail ?? data?.title ?? data?.message ?? err.message ?? fallback
   }
   return fallback
