@@ -53,6 +53,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // -> fail auth -> tra 401 -> frontend interceptor redirect /login.
         options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
         {
+            // WebSocket khong gui duoc header Authorization, nen SignalR truyen JWT
+            // qua query "?access_token=...". Chi doc token tu query cho duong dan hub.
+            OnMessageReceived = ctx =>
+            {
+                var accessToken = ctx.Request.Query["access_token"];
+                var path = ctx.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
+                {
+                    ctx.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
+
             OnTokenValidated = async ctx =>
             {
                 var sub = ctx.Principal?.FindFirst("sub")?.Value;
@@ -181,6 +194,9 @@ builder.Services.AddControllers(options =>
 // Tat auto-400 mac dinh cua ModelState - de ValidationFilter cua FluentValidation xu ly
 .ConfigureApiBehaviorOptions(options => options.SuppressModelStateInvalidFilter = true);
 
+// === SignalR (chat real-time benh nhan <-> duoc si) ===
+builder.Services.AddSignalR();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -238,6 +254,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
+app.MapHub<PharmaIntel.API.Hubs.ChatHub>("/hubs/chat");
 
 // === Health endpoints (KHONG yeu cau auth) ===
 // Tra JSON gon: {"status":"Healthy","checks":[{"name":"database","status":"Healthy"}]}

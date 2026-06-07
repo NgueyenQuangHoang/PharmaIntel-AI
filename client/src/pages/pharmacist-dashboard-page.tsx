@@ -5,6 +5,7 @@ import { pharmacistApi } from '@/features/pharmacist/pharmacist-api'
 import type { PrescriptionDocumentVerification } from '@/features/pharmacist/types'
 import { resolveFileUrl } from '@/utils/file-url'
 import { PharmacistConsultationsPanel } from '@/features/consultations/PharmacistConsultationsPanel'
+import { PharmacistChatPanel } from '@/features/chat/PharmacistChatPanel'
 
 function extractApiError(err: unknown, fallback: string) {
   if (axios.isAxiosError(err)) {
@@ -19,7 +20,7 @@ function extractApiError(err: unknown, fallback: string) {
 }
 
 type Tab = 'pending' | 'verified' | 'rejected'
-type Section = 'prescriptions' | 'consultations'
+type Section = 'prescriptions' | 'consultations' | 'chat'
 
 const TAB_LABELS: Record<Tab, string> = {
   pending: 'Hàng chờ',
@@ -30,6 +31,7 @@ const TAB_LABELS: Record<Tab, string> = {
 const SECTION_LABELS: Record<Section, string> = {
   prescriptions: 'Đơn thuốc',
   consultations: 'Yêu cầu tư vấn',
+  chat: 'Tin nhắn',
 }
 
 export function PharmacistDashboardPage() {
@@ -96,6 +98,8 @@ export function PharmacistDashboardPage() {
       </div>
 
       {section === 'consultations' && <PharmacistConsultationsPanel />}
+
+      {section === 'chat' && <PharmacistChatPanel />}
 
       {section === 'prescriptions' && (
       <>
