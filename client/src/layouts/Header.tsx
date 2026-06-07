@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { useAuth } from '@/hooks/useAuth';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { openCart } from '@/features/cart/cart-slice';
 
@@ -24,6 +25,7 @@ export function Header() {
   const cartTotalItems = useAppSelector((s) => s.cart.cart?.totalItems ?? 0);
   const dispatch = useAppDispatch();
   const { isAuthenticated, logout, user } = useAuth();
+  const requireAuth = useRequireAuth();
   const { theme, toggleTheme } = useDarkMode();
   const navigate = useNavigate();
 
@@ -153,8 +155,8 @@ export function Header() {
 
         {/* Icons */}
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => dispatch(openCart())}
+          <button
+            onClick={() => { if (requireAuth()) dispatch(openCart()); }}
             className="p-2 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors duration-200 relative"
             title="Giỏ hàng"
           >

@@ -2,7 +2,7 @@
 // LoginForm - controlled form, dispatch loginThunk va navigate khi thanh cong
 // =============================================================================
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppDispatch } from '@/hooks/redux';
@@ -10,6 +10,7 @@ import { clearError } from '@/features/auth/auth-slice';
 
 export function LoginForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const { login, loginWithGoogle, status, error, isAuthenticated } = useAuth();
 
@@ -21,9 +22,11 @@ export function LoginForm() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      // Quay ve trang khach dang dinh thao tac (neu co), mac dinh ve trang chu.
+      const redirect = searchParams.get('redirect');
+      navigate(redirect || '/', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, searchParams]);
 
   useEffect(() => {
     return () => {

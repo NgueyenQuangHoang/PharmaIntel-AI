@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { fetchFeaturedThunk } from '@/features/medications/medications-slice';
 import { addToCartThunk } from '@/features/cart/cart-slice';
 import { formatVnd } from '@/utils/format';
@@ -70,10 +71,8 @@ function FeatureSmallCard({ med, onAdd }: { med: MedicationListItem; onAdd: () =
 
 export function FeaturedMedications() {
   const dispatch = useAppDispatch();
+  const requireAuth = useRequireAuth();
   const { items, status, error } = useAppSelector((s) => s.medications.featured);
-  const isAuthenticated = useAppSelector(
-    (s) => s.auth.status === 'authenticated' && !!s.auth.token,
-  );
 
   useEffect(() => {
     if (status === 'idle') {
@@ -82,7 +81,7 @@ export function FeaturedMedications() {
   }, [status, dispatch]);
 
   const handleAdd = (medicationId: number) => {
-    if (!isAuthenticated) return;
+    if (!requireAuth()) return; // khach chua dang nhap -> dieu huong login
     dispatch(addToCartThunk({ medicationId, quantity: 1 }));
   };
 

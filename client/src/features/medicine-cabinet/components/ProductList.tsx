@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/hooks/redux';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { fetchCatalogThunk } from '@/features/medications/medications-slice';
 import { addToCartThunk } from '@/features/cart/cart-slice';
 import { formatVnd } from '@/utils/format';
@@ -80,6 +81,7 @@ function ProductCard({
 
 export function ProductList({ selectedCategoryId, searchQuery, sortOption, page, onPageChange, onOpenCart }: ProductListProps) {
   const dispatch = useAppDispatch();
+  const requireAuth = useRequireAuth();
   const { items, status, error, totalCount } = useAppSelector((s) => s.medications.catalog);
   const pendingIds = useAppSelector((s) => s.cart.pendingMedicationIds);
 
@@ -114,6 +116,7 @@ export function ProductList({ selectedCategoryId, searchQuery, sortOption, page,
   }, [selectedCategoryId, searchQuery, sortOption, page, dispatch]);
 
   const handleAdd = async (medicationId: number) => {
+    if (!requireAuth()) return; // khach chua dang nhap -> dieu huong login
     try {
       await dispatch(addToCartThunk({ medicationId, quantity: 1 })).unwrap();
       onOpenCart?.();
