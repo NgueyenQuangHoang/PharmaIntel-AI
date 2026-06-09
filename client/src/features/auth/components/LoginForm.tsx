@@ -19,6 +19,9 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
 
   const isSubmitting = status === 'loading';
+  // Chi render nut Google khi co VITE_GOOGLE_CLIENT_ID (khi do AppProviders moi boc
+  // GoogleOAuthProvider). Thieu thi <GoogleLogin> se throw -> trang login trang.
+  const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -138,6 +141,7 @@ export function LoginForm() {
         </button>
       </form>
 
+      {googleEnabled && (
       <div className="mt-8">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
@@ -172,6 +176,7 @@ export function LoginForm() {
           </div>
         </div>
       </div>
+      )}
 
       <p className="mt-10 text-center text-sm text-on-surface-variant font-body">
         Don't have an account?
