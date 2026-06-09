@@ -1,0 +1,33 @@
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  tags: [common, apt]
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: safe
+  tags: [common, upgrade]
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  tags: [common, packages]
+
+- name: Install tzdata for timezone support
+  ansible.builtin.apt:
+    name: tzdata
+    state: present
+  tags: [common, timezone]
+
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ system_timezone }}"
+  tags: [common, timezone]
+  ignore_errors: yes
+
+- name: Show hostname info
+  ansible.builtin.debug:
+    msg: "Hostname: {{ ansible_hostname }} | FQDN: {{ ansible_fqdn }}"
+  tags: [common, info]

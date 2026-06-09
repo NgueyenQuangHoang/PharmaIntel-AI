@@ -1,0 +1,40 @@
+---
+# =============================================================================
+# Role: nginx - Cai Nginx web server
+# =============================================================================
+
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: yes
+  tags: [nginx, install]
+
+- name: Remove default Nginx config
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: reload nginx
+  tags: [nginx, config]
+
+- name: Deploy Nginx config cho {{ app_name }}
+  ansible.builtin.template:
+    src: nginx-site.conf.j2
+    dest: "/etc/nginx/sites-available/{{ app_name }}"
+    mode: '0644'
+  notify: reload nginx
+  tags: [nginx, config]
+
+- name: Enable {{ app_name }} site
+  ansible.builtin.file:
+    src: "/etc/nginx/sites-available/{{ app_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ app_name }}"
+    state: link
+  notify: reload nginx
+  tags: [nginx, config]
+
+- name: Validate Nginx config
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  tags: [nginx, verify]
+

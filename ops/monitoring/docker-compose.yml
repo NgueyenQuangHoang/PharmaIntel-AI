@@ -1,0 +1,105 @@
+services:
+  # Thu thap metrics host (CPU, RAM, disk, network)
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: monitoring-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    ports:
+      - "127.0.0.1:9100:9100"
+    networks:
+      - monitoring-net
+
+  # Thu thap metrics Docker containers
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: monitoring-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "127.0.0.1:8090:8080"
+    networks:
+      - monitoring-net
+
+  # Thu thap metrics SQL Server (pharmaintel-db)
+  mssql-exporter:
+    image: awaragi/prometheus-mssql-exporter:latest
+    container_name: monitoring-mssql-exporter
+    restart: unless-stopped
+    environment:
+      SERVER: pharmaintel-db
+      USERNAME: sa
+      PASSWORD: ${MSSQL_SA_PASSWORD}
+      PORT: 1433
+    ports:
+      - "127.0.0.1:9182:4000"
+    networks:
+      - monitoring-net
+      - pharmaintel-net   # Phai cung network voi pharmaintel-db de connect
+
+  # Time-series database, scrape va luu metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: monitoring-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - monitoring-net
+
+  # UI dashboard
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: monitoring-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://grafana.medicalpharmal.com
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - monitoring-net
+    depends_on:
+      - prometheus
+
+networks:
+  monitoring-net:
+    name: monitoring-net
+    driver: bridge
+  pharmaintel-net:
+    external: true   # Su dung network co san cua pharmaintel
+
+volumes:
+  prometheus-data:
+    name: monitoring-prometheus-data
+  grafana-data:
+    name: monitoring-grafana-data

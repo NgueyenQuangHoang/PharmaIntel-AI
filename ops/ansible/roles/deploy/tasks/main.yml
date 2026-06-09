@@ -1,0 +1,88 @@
+---
+# =============================================================================
+# Role: deploy - Deploy noi dung ung dung
+# =============================================================================
+
+- name: Create web root directory
+  ansible.builtin.file:
+    path: "/var/www/{{ app_name }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+  tags: [deploy, prepare]
+
+- name: Deploy index.html
+  ansible.builtin.copy:
+    dest: "/var/www/{{ app_name }}/index.html"
+    content: |
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+          <meta charset="UTF-8">
+          <title>{{ app_name | upper }} - {{ environment_name | upper }}</title>
+          <style>
+              body {
+                  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                  margin: 0;
+              }
+              .container {
+                  text-align: center;
+                  padding: 40px;
+                  background: rgba(255,255,255,0.1);
+                  border-radius: 20px;
+                  backdrop-filter: blur(10px);
+              }
+              h1 { font-size: 3em; margin-bottom: 20px; }
+              p { font-size: 1.2em; opacity: 0.9; }
+              .meta {
+                  margin-top: 30px;
+                  padding-top: 20px;
+                  border-top: 1px solid rgba(255,255,255,0.3);
+                  font-size: 0.9em;
+              }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <h1>🚀 {{ app_message }}</h1>
+              <p>Provisioned by <strong>Terraform</strong>, configured by <strong>Ansible</strong></p>
+              <div class="meta">
+                  <p>📦 Project: {{ project_name }}</p>
+                  <p>🌍 Environment: {{ environment_name }}</p>
+                  <p>🖥️ Host: {{ ansible_hostname }}</p>
+                  <p>📅 Deployed: {{ ansible_date_time.iso8601 }}</p>
+              </div>
+          </div>
+      </body>
+      </html>
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  tags: [deploy, html]
+
+- name: Ensure Nginx is running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes
+  tags: [deploy, service]
+
+- name: Verify deployment
+  ansible.builtin.uri:
+    url: "http://localhost/health"
+    status_code: 200
+    return_content: yes
+  register: health_check
+  tags: [deploy, verify]
+
+- name: Show deployment status
+  ansible.builtin.debug:
+    msg: "✅ Deployment OK - Health check: {{ health_check.content | trim }}"
+  tags: [deploy, verify]

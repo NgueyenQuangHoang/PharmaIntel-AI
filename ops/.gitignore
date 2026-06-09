@@ -1,0 +1,73 @@
+# ============================================================
+# Secrets & Credentials - KHONG BAO GIO COMMIT
+# ============================================================
+.env
+.env.local
+.env.production
+*.pem
+*.key
+*.crt
+ansible/inventory.yml
+ansible/.vault_pass
+monitoring/.env
+
+# ============================================================
+# Terraform
+# ============================================================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Note: .terraform.lock.hcl SHOULD be committed (de reproducible)
+
+# ============================================================
+# Ansible
+# ============================================================
+*.retry
+.ansible_facts/
+
+# ============================================================
+# LocalStack & Docker volumes
+# ============================================================
+volume/
+data/
+*-data/
+
+# ============================================================
+# OS Files
+# ============================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# IDE
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ============================================================
+# Logs
+# ============================================================
+*.log
+logs/

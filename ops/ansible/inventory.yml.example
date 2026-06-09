@@ -1,0 +1,16 @@
+# Copy file nay thanh inventory.yml va dien gia tri thuc te
+# inventory.yml KHONG nen commit vi chua password/SSH key path
+
+all:
+  children:
+    webservers:
+      hosts:
+        pharmaintel-web:
+          ansible_host: localhost              # Hoac IP VPS that
+          ansible_port: 2222                   # Hoac 22 cho VPS that
+          ansible_user: ansible                # Hoac ubuntu/root cho cloud
+          ansible_password: CHANGE_ME          # Hoac dung ansible_ssh_private_key_file
+          ansible_become_password: CHANGE_ME
+      vars:
+        environment_name: dev
+        project_name: pharmaintel

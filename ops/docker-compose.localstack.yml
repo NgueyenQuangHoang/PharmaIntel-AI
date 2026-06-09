@@ -1,0 +1,25 @@
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: localstack
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:4510-4559:4510-4559"
+    environment:
+      - SERVICES=ec2,s3,iam,vpc,route53,sts,cloudwatch
+      - DEFAULT_REGION=ap-southeast-1
+      - DEBUG=0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - PERSISTENCE=0
+    volumes:
+      - "./volume:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+  mock-vps:
+    build: ./mock-vps
+    container_name: mock-vps
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2222:22"     # SSH expose o port 2222
+      - "127.0.0.1:8888:80"     # HTTP expose o port 8888
+    privileged: true             # Can de chay Docker-in-Docker

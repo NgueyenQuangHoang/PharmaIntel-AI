@@ -1,0 +1,23 @@
+
+docker_users:
+  - ansible
+
+# Application
+app_name: pharmaintel
+app_port: 80
+app_message: "PharmaIntel - Deployed by Ansible + Terraform"
+
+# Timezone
+system_timezone: "Asia/Ho_Chi_Minh"
+
+# Packages can cai
+common_packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - net-tools
+  - ca-certificates
+  - gnupg
+  - lsb-release
