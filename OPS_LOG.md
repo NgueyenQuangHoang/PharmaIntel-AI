@@ -3,8 +3,8 @@
 Ghi lai cac viec da lam o phan ops (DevOps / cau hinh / trien khai).
 File nay duoc CAP NHAT MOI khi co thay doi ops moi.
 
-> Cap nhat lan cuoi: 2026-05-26
-> Trang thai: Phase 1-9 hoan tat.
+> Cap nhat lan cuoi: 2026-06-09
+> Trang thai: Phase 1-10 hoan tat.
 
 ---
 
@@ -21,6 +21,7 @@ File nay duoc CAP NHAT MOI khi co thay doi ops moi.
 | 7 | GitHub Actions CI (backend + frontend) | Done |
 | 8 | Docker build & push len GHCR | Done |
 | 9 | Jenkins pipeline auto-deploy (pull GHCR -> compose up) | Done |
+| 10 | Reverse proxy /api qua nginx web (same-origin, fix Network Error) | Done |
 
 ---
 
@@ -491,9 +492,43 @@ git push origin v1.0.0
 
 ---
 
+## Phase 10 - Reverse proxy /api qua nginx web (same-origin)
+
+**Muc tieu:** Sua loi login "Network Error" tren prod. Frontend build voi
+`VITE_API_URL=/api` (relative) nhung nginx web chua proxy `/api` -> request roi
+vao SPA fallback (tra `index.html`) thay vi goi API.
+
+**Trieu chung:** Tat ca container Healthy nhung dang nhap tai `https://medicalpharmal.com`
+bao "Network Error" (axios khong nhan duoc response API).
+
+### Thay doi
+
+| File | Thay doi |
+|---|---|
+| `client/nginx.conf` | Them `map $http_upgrade $connection_upgrade` + 3 location proxy sang `http://api:8080`: `/api/` (REST), `/hubs/` (SignalR WebSocket, Upgrade header + read_timeout 3600s), `/uploads/` (file tinh BE) |
+
+**Luu y proxy_pass:** dung `proxy_pass http://api:8080;` (KHONG co URI/`/` o cuoi)
+de giu nguyen path goc, vi BE route co san tien to `/api`, `/hubs`, `/uploads`.
+
+### Trien khai tren server
+
+```bash
+cd /opt/pharmaintel
+docker compose up -d --build web   # phai build lai (nginx.conf nam trong image web)
+```
+
+Sau do hard refresh (Ctrl+Shift+R). Loi CORS tu bien mat (cung origin) -
+`WEB_ORIGINS` khong con bat buoc nhung giu lai cung khong sao.
+
+### Tien de
+- Container `api` va `web` cung mang compose `pharmaintel-net` (DNS noi bo resolve `api`).
+- `.env` tren server: `VITE_API_URL=/api` (da co).
+
+---
+
 ## Cac phase tiep theo (de xuat, chua lam)
 
-- [ ] Reverse proxy gop `/api` + `/` cung 1 origin (bo luon CORS).
+- [x] Reverse proxy gop `/api` + `/` cung 1 origin (bo luon CORS). **(Phase 10)**
 - [ ] CD: auto deploy len server/k8s sau khi push image.
 - [ ] Trivy/CodeQL scan image truoc khi push.
 - [ ] Logging tap trung (Seq/Loki) + metrics.
