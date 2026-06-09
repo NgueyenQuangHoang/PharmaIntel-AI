@@ -4,7 +4,7 @@
 // duoc redirect ve trang chu thay vi /login (token van hop le).
 // =============================================================================
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAppSelector } from '@/hooks/redux'
 
 type Props = {
@@ -14,9 +14,12 @@ type Props = {
 
 export function ProtectedRoute({ children, requireRole }: Props) {
   const { token, status, user } = useAppSelector((s) => s.auth)
+  const location = useLocation()
 
   if (!token) {
-    return <Navigate to="/login" replace />
+    // Giu lai dich den de sau khi dang nhap quay ve dung trang dang dinh vao.
+    const redirect = encodeURIComponent(location.pathname + location.search)
+    return <Navigate to={`/login?redirect=${redirect}`} replace />
   }
 
   if (status === 'loading' && !user) {

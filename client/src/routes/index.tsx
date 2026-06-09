@@ -31,6 +31,16 @@ import { AboutPage } from '@/pages/about-page';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
+function PublicLayoutWrapper() {
+  // Trang cong khai: khach xem duoc ma khong can dang nhap (browse catalog/duoc si).
+  // Hanh dong can dang nhap duoc gate rieng o tung nut (xem useRequireAuth).
+  return (
+    <MainLayout>
+      <Outlet />
+    </MainLayout>
+  );
+}
+
 function ProtectedLayoutWrapper() {
   return (
     <ProtectedRoute>
@@ -80,15 +90,19 @@ export function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Global layout - chi truy cap khi da dang nhap */}
-        <Route element={<ProtectedLayoutWrapper />}>
+        {/* Layout cong khai - khach xem duoc khi chua dang nhap */}
+        <Route element={<PublicLayoutWrapper />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/diagnostic" element={<DiagnosticPage />} />
-          <Route path="/diagnostic/result" element={<DiagnosticResultPage />} />
           <Route path="/consultations" element={<ConsultationsPage />} />
           <Route path="/medicine" element={<MedicineCabinetPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/about" element={<AboutPage />} />
+        </Route>
+
+        {/* Global layout - chi truy cap khi da dang nhap */}
+        <Route element={<ProtectedLayoutWrapper />}>
+          <Route path="/diagnostic" element={<DiagnosticPage />} />
+          <Route path="/diagnostic/result" element={<DiagnosticResultPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersListPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />

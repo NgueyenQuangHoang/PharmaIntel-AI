@@ -2,7 +2,7 @@
 // LoginForm - controlled form, dispatch loginThunk va navigate khi thanh cong
 // =============================================================================
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppDispatch } from '@/hooks/redux';
@@ -10,6 +10,7 @@ import { clearError } from '@/features/auth/auth-slice';
 
 export function LoginForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const { login, loginWithGoogle, status, error, isAuthenticated } = useAuth();
 
@@ -18,12 +19,17 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
 
   const isSubmitting = status === 'loading';
+  // Chi render nut Google khi co VITE_GOOGLE_CLIENT_ID (khi do AppProviders moi boc
+  // GoogleOAuthProvider). Thieu thi <GoogleLogin> se throw -> trang login trang.
+  const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      // Quay ve trang khach dang dinh thao tac (neu co), mac dinh ve trang chu.
+      const redirect = searchParams.get('redirect');
+      navigate(redirect || '/', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, searchParams]);
 
   useEffect(() => {
     return () => {
@@ -135,6 +141,7 @@ export function LoginForm() {
         </button>
       </form>
 
+      {googleEnabled && (
       <div className="mt-8">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
@@ -169,6 +176,7 @@ export function LoginForm() {
           </div>
         </div>
       </div>
+      )}
 
       <p className="mt-10 text-center text-sm text-on-surface-variant font-body">
         Don't have an account?

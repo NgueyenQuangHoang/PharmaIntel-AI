@@ -7,6 +7,7 @@ import { pharmacistsApi } from '@/features/pharmacists/pharmacists-api';
 import type { Pharmacist } from '@/features/pharmacists/types';
 import { consultationsApi } from '@/features/consultations/consultations-api';
 import { ChatDock } from '@/features/chat/ChatDock';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 const SPECIALTIES = ['Tất cả', 'Dược lâm sàng', 'Dược liệu & Cổ truyền', 'Dinh dưỡng', 'Dược lý'];
 
@@ -24,6 +25,7 @@ export function ConsultationsPage() {
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingToast, setBookingToast] = useState<string | null>(null);
   const [chatPharmacist, setChatPharmacist] = useState<Pharmacist | null>(null);
+  const requireAuth = useRequireAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -58,8 +60,14 @@ export function ConsultationsPage() {
   }, [pharmacists, searchTerm, selectedSpecialty]);
 
   const handleOpenBooking = (pharmacist: Pharmacist) => {
+    if (!requireAuth()) return; // khach chua dang nhap -> dieu huong login
     setSelectedPharmacist(pharmacist);
     setIsBookingModalOpen(true);
+  };
+
+  const handleOpenChat = (pharmacist: Pharmacist) => {
+    if (!requireAuth()) return; // chat bat dang nhap
+    setChatPharmacist(pharmacist);
   };
 
   const handleCloseBooking = () => {
@@ -216,7 +224,7 @@ export function ConsultationsPage() {
                   </div>
                   <div className="flex-[2] flex justify-end gap-2">
                     <button
-                      onClick={() => setChatPharmacist(pharmacist)}
+                      onClick={() => handleOpenChat(pharmacist)}
                       className="p-2.5 rounded-xl bg-secondary-container text-secondary hover:bg-secondary/20 transition-colors"
                       title="Chat nhanh"
                     >
